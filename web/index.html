@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta id="theme-color" name="theme-color" content="#f2f2f2">
+  <title>Kovaak Agent</title>
+  <script>
+    (() => {
+      const savedTheme = localStorage.getItem("kovaak-agent-theme");
+      document.documentElement.dataset.theme = savedTheme === "dark" ? "dark" : "light";
+    })();
+  </script>
+  <link rel="stylesheet" href="/vendor/daisyui.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" data-view="progress" href="#progress" aria-label="Kovaak Agent home">
+        <span class="brand-mark" aria-hidden="true">K</span>
+        <span>
+          <strong>Kovaak Agent</strong>
+          <small>TRAIN · REFLECT · IMPROVE</small>
+        </span>
+      </a>
+
+      <div class="topbar-actions"><button class="btn btn-outline btn-sm" data-modal="connections-dialog" type="button">Connections <span aria-hidden="true">⚙</span></button>
+        <div class="connection" aria-live="polite">
+          <span id="watcher-dot" class="dot"></span>
+          <span id="watcher-label">Checking watcher...</span>
+        </div>
+        <button id="theme-toggle" class="btn btn-ghost btn-sm theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false">
+          <svg class="theme-icon moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+          <svg class="theme-icon sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
+          <span id="theme-label">Dark mode</span>
+        </button>
+      </div>
+    </header>
+
+<main id="top"><section class="workspace-heading"><div><p class="eyebrow">YOUR TRAINING WORKSPACE</p><h1 id="workspace-title">Your training, in focus.</h1><p id="workspace-description" class="lede">Spot the changes. Keep the context. Know what to train next.</p></div><div class="window-card" aria-label="Latest imported run"><span>Latest run</span><strong id="hero-scenario">Awaiting data</strong><small id="hero-time">Connect your stats folder</small></div></section><nav class="workspace-navigation" aria-label="Workspace"><div class="tabs tabs-border workspace-tabs" role="tablist" aria-label="Training workspace"><button type="button" class="tab tab-active" id="tab-progress" role="tab" aria-controls="view-progress" aria-selected="true" tabindex="0" data-view="progress">Progress</button><button type="button" class="tab " id="tab-session" role="tab" aria-controls="view-session" aria-selected="false" tabindex="-1" data-view="session">Latest session</button><button type="button" class="tab " id="tab-coach" role="tab" aria-controls="view-coach" aria-selected="false" tabindex="-1" data-view="coach">Coach</button><button type="button" class="tab " id="tab-memory" role="tab" aria-controls="view-memory" aria-selected="false" tabindex="-1" data-view="memory">Memory</button><button type="button" class="tab " id="tab-reviews" role="tab" aria-controls="view-reviews" aria-selected="false" tabindex="-1" data-view="reviews">Reviews</button></div><span class="workspace-note"><span class="status status-success" aria-hidden="true"></span> Saved on this device</span></nav><div id="review-toolbar" class="review-toolbar">          <div class="review-controls">
+            <div class="period-switch"><span class="field-label">Review period</span><div class="join" role="group" aria-label="Review period"><button type="button" class="btn join-item" data-period="daily" aria-pressed="false">Day</button><button type="button" class="btn join-item btn-active" data-period="weekly" aria-pressed="true">Week</button><button type="button" class="btn join-item" data-period="monthly" aria-pressed="false">Month</button><button type="button" class="btn join-item" data-period="yearly" aria-pressed="false">Year</button></div></div>
+            <label class="period-select-label">Review period<select id="review-period" class="select select-bordered"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="yearly">Year in review</option></select></label>
+            <label>Date in period<input id="review-date" class="input input-bordered" type="date"></label>
+            <label>Agent role<select id="agent-role" class="select select-bordered"><option value="coach">Long-term coach</option></select></label>
+          </div></div><section id="view-progress" class="workspace-panel" role="tabpanel" aria-labelledby="tab-progress" tabindex="0" >      <section class="card app-card longterm-card" aria-labelledby="longterm-title">
+        <div class="card-body">
+          <div class="panel-heading">
+            <div><p class="step">YOUR LONG-TERM PROGRESS</p><h2 id="longterm-title">Your progress at a glance</h2></div>
+            <button class="btn btn-primary btn-sm" type="button" data-view="coach">Coach this period <span aria-hidden="true">↗</span></button><span hidden id="retention-badge" class="badge badge-success badge-soft">History retained</span>
+          </div>
+
+          <p id="period-caption" class="hint" aria-live="polite">Loading your retained history…</p>
+          <div class="review-metrics stats">
+            <div><span>Runs</span><strong id="period-runs">—</strong><small id="previous-runs">Previous period: —</small></div>
+            <div><span>Practice time</span><strong id="period-minutes">—</strong><small id="time-coverage">Captured duration</small></div>
+            <div><span>Active days</span><strong id="period-days">—</strong><small id="retained-range">All history kept locally</small></div>
+            <div><span>Accuracy</span><strong id="period-accuracy">—</strong><small id="accuracy-coverage">Paired hits / shots</small></div>
+          </div>
+          <div id="activity-chart" class="activity-chart" aria-label="Training activity by date"></div>
+          <div class="table-wrap"><table class="table table-zebra"><thead><tr><th>Scenario</th><th>Runs</th><th>Average score</th><th>Best score</th><th>Accuracy</th><th>Vs previous period</th></tr></thead><tbody id="period-scenarios"></tbody></table></div>
+          <p class="hint comparison-note">Scores are compared within the same scenario. A period in progress is compared with the full previous period; missing sessions are not treated as zero performance.</p>
+          <div id="dashboard-message" class="message" aria-live="polite"></div>
+        </div>
+      </section></section><section id="view-session" class="workspace-panel" role="tabpanel" aria-labelledby="tab-session" tabindex="0" hidden>      <section class="section-heading" aria-labelledby="performance-title">
+        <div>
+          <p class="eyebrow">LATEST SESSION</p>
+          <h2 id="performance-title">The latest run, in detail.</h2>
+        </div>
+        <p id="week-summary">No runs in the seven-day window yet.</p>
+      </section>      <section class="metrics" aria-label="Latest run summary">
+        <article class="metric">
+          <div class="metric-icon" aria-hidden="true">↗</div>
+          <div><span>Score</span><strong id="latest-score">—</strong><small id="score-context">latest run</small></div>
+        </article>
+        <article class="metric">
+          <div class="metric-icon" aria-hidden="true">◎</div>
+          <div><span>Accuracy</span><strong id="latest-accuracy">—</strong><small id="shot-total">No shot data</small></div>
+        </article>
+        <article class="metric">
+          <div class="metric-icon" aria-hidden="true">●</div>
+          <div><span>Hits</span><strong id="latest-hits">—</strong><small id="miss-total">No miss data</small></div>
+        </article>
+        <article class="metric">
+          <div class="metric-icon" aria-hidden="true">Hz</div>
+          <div><span>Average FPS</span><strong id="latest-fps">—</strong><small>captured by Kovaak's</small></div>
+        </article>
+      </section><div class="session-layout">        <article class="card app-card performance-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">SHOT CONVERSION</p><h3 id="session-scenario">Waiting for a run</h3></div>
+              <span id="duration-badge" class="badge badge-ghost state-badge">—</span>
+            </div>
+
+            <div class="conversion" aria-label="Hit and miss share">
+              <div class="conversion-labels"><span>Hits</span><strong id="conversion-label">No shot data</strong><span>Misses</span></div>
+              <div class="conversion-track"><span id="conversion-fill"></span></div>
+            </div>
+
+            <dl class="settings-grid">
+              <div><dt>Weapon</dt><dd id="run-weapon">—</dd></div>
+              <div><dt>Sensitivity</dt><dd id="run-sensitivity">—</dd></div>
+              <div><dt>DPI</dt><dd id="run-dpi">—</dd></div>
+              <div><dt>FOV</dt><dd id="run-fov">—</dd></div>
+              <div><dt>Resolution</dt><dd id="run-resolution">—</dd></div>
+              <div><dt>Game build</dt><dd id="run-version">—</dd></div>
+            </dl>
+          </div>
+        </article>      <section class="history-section" aria-labelledby="history-title">
+        <article class="card app-card history-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">SCENARIO HISTORY</p><h3 id="history-title">Recent runs</h3></div>
+              <button id="refresh" class="btn btn-ghost btn-sm" type="button">Refresh</button>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>When</th><th>Scenario</th><th>Score</th><th>Accuracy</th><th>Hits / shots</th><th>Setup</th></tr></thead>
+                <tbody id="runs-table"><tr><td colspan="6" class="empty-row">No runs imported yet.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </section></div></section><section id="view-coach" class="workspace-panel" role="tabpanel" aria-labelledby="tab-coach" tabindex="0" hidden><div class="coach-notice alert" role="note"><span>Your coach uses this period, your saved goals, and past advice.</span><button class="btn btn-ghost btn-sm" data-modal="connections-dialog" type="button">Connect a model ↗</button></div><div class="performance-grid">        <article id="digest-panel" class="card app-card digest-panel">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">YOUR CONTINUING COACH</p><h3 id="digest-title">What to train next</h3></div>
+              <button id="generate-digest" class="btn btn-primary" type="button">Generate coaching</button>
+            </div>
+            <div id="digest-meta" class="digest-meta" aria-label="Report source" hidden>
+              <span id="digest-provider" class="badge badge-primary badge-soft"></span>
+              <span id="digest-model" class="digest-model"></span>
+              <span id="digest-window" class="digest-window"></span>
+            </div>
+            <div id="digest" class="digest empty" aria-live="polite">Choose a period and role above, then connect your model in Connections. Your saved memories, past advice and long-term scenario history accompany each review.</div>
+          </div>
+        </article></div></section><section id="view-memory" class="workspace-panel" role="tabpanel" aria-labelledby="tab-memory" tabindex="0" hidden>      <section class="setup-grid memory-grid" aria-label="Persistent coaching memory">
+        <article class="card app-card"><div class="card-body">
+          <div class="panel-heading"><div><p class="step">SHARED ACROSS AGENTS</p><h3>Your coaching memory</h3></div><button id="add-memory" class="btn btn-primary btn-sm" type="button">Add memory <span aria-hidden="true">+</span></button></div>
+          <p class="hint">Goals, preferences and outcomes stay here when you change models or restart. Add an outcome to tell your next coach what you actually tried.</p>
+
+          <div id="memory-action-message" class="message" aria-live="polite"></div>
+          <label class="schedule-toggle"><input id="show-archived" class="checkbox checkbox-sm" type="checkbox"> Show archived memories</label>
+          <div id="memory-list" class="memory-list"></div>
+        </div></article>
+        <article class="card app-card"><div class="card-body">
+          <div><p class="step">A COACH THAT CARRIES CONTEXT</p><h3>Agent roles</h3></div>
+          <p class="hint">Every role uses the same player history. Change its focus without starting your coaching relationship again.</p>
+<button class="btn btn-outline btn-sm" type="button" data-modal="role-dialog">Manage roles</button><div id="role-catalog" class="role-catalog"></div>
+
+
+        </div></article>
+      </section></section><section id="view-reviews" class="workspace-panel" role="tabpanel" aria-labelledby="tab-reviews" tabindex="0" hidden><div class="reviews-layout">      <section class="card app-card review-archive"><div class="card-body">
+        <div><p class="step">YOUR COACHING JOURNAL</p><h3>Saved reviews</h3></div>
+        <p class="hint">Recent coaching reports and all automatic year-end snapshots. Reports remain saved when you switch providers.</p>
+        <div id="review-archive" class="review-list"></div>
+      </div></section><article class="card app-card schedule-card"><div class="card-body"><div><p class="step">LOOKING AHEAD</p><h3>Your year-end review</h3></div>          <label class="schedule-toggle"><input id="annual-enabled" class="toggle toggle-primary" type="checkbox"> Automatically save my year-end review</label>
+          <p id="annual-schedule" class="hint"></p>
+          <p class="hint">Runs locally at year close, January 1 at midnight. If the app is closed, it catches up next time it opens. Late imports update the saved statistical review. No API key is needed. Add model coaching whenever you’re ready.</p>
+          <div id="schedule-message" class="message" aria-live="polite"></div></div></article></div></section></main>
+
+    <footer>
+      <span>Your progress stays with you.</span>
+      <span id="last-sync">Waiting for first import</span>
+    </footer>
+  </div>
+<dialog id="connections-dialog" class="modal" aria-labelledby="connections-dialog-title">
+      <div class="modal-box modal-wide">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Connections">✕</button></form>
+        <p class="eyebrow">KOVAAK AGENT</p><h2 id="connections-dialog-title">Connections</h2><p class="dialog-description">Bring in your runs and connect a coaching model.</p>
+              <div class="setup-grid" aria-label="Setup connections">
+        <article class="card app-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div class="heading-with-step">
+                <span class="step-number">1</span>
+                <div><p class="step">KOVAAK'S STATS</p><h3>Watch the export folder</h3></div>
+              </div>
+              <span id="path-state" class="badge badge-ghost state-badge">Not set</span>
+            </div>
+            <label class="field-label" for="watch-path">Stats CSV or folder</label>
+            <div class="field-row">
+              <input id="watch-path" class="input input-bordered" type="text" spellcheck="false" placeholder="…\FPSAimTrainer\stats">
+              <button id="save-path" class="btn btn-primary" type="button">Save &amp; scan</button>
+            </div>
+            <p class="hint">Point to the <strong>stats</strong> folder to import each completed challenge automatically, including weapon totals and aim settings.</p>
+            <div id="import-message" class="message" aria-live="polite"></div>
+          </div>
+        </article>
+
+        <article class="card app-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div class="heading-with-step">
+                <span class="step-number">2</span>
+                <div><p class="step">OPTIONAL COACH</p><h3>Connect your model</h3></div>
+              </div>
+              <span id="model-state" class="badge badge-ghost state-badge">Disconnected</span>
+            </div>
+            <label class="field-label" for="provider">API provider</label>
+            <select id="provider" class="select select-bordered" autocomplete="off">
+              <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+            <label id="model-label" class="field-label" for="model">OpenAI model</label>
+            <input id="model" class="input input-bordered" type="text" spellcheck="false" value="gpt-5.4-mini">
+            <label id="api-key-label" class="field-label" for="api-key">OpenAI API key <span class="quiet">session only</span></label>
+            <div class="field-row">
+              <input id="api-key" class="input input-bordered" type="password" autocomplete="off" placeholder="sk-...">
+              <button id="connect-model" class="btn btn-neutral" type="button">Connect &amp; test</button>
+            </div>
+            <p id="provider-hint" class="hint">Shares selected-period statistics, a bounded sample of runs, relevant saved memories, prior advice and lifetime scenario summaries when you request coaching.</p>
+            <div id="model-message" class="message" aria-live="polite"></div>
+            <details id="model-diagnostics" class="provider-diagnostics" hidden>
+              <summary>Provider diagnostics</summary>
+              <pre id="model-diagnostics-output"></pre>
+              <a id="provider-diagnostics-link" href="https://openrouter.ai/logs?tab=requests" target="_blank" rel="noreferrer" hidden>Open OpenRouter request logs</a>
+            </details>
+          </div>
+        </article>
+      </div><div class="backup-row"><div><strong>Keep a backup</strong><p class="hint">Download your runs, roles, memories and reviews together.</p></div><a class="btn btn-outline btn-sm" href="/api/backup" download>Download backup</a></div>
+      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Connections">Close</button></form>
+    </dialog><dialog id="memory-dialog" class="modal" aria-labelledby="memory-dialog-title">
+      <div class="modal-box ">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Coaching memory">✕</button></form>
+        <p class="eyebrow">KOVAAK AGENT</p><h2 id="memory-dialog-title">Coaching memory</h2><p class="dialog-description">Save a goal, preference, or outcome for your next review.</p>
+                  <form id="memory-form">
+            <div class="review-controls"><label>Memory type<select id="memory-kind" class="select select-bordered"><option value="goal">Goal</option><option value="preference">Preference</option><option value="constraint">Constraint</option><option value="outcome">Practice outcome</option><option value="note">Note</option></select></label><label>Scenario (optional)<input id="memory-scenario" class="input input-bordered" maxlength="200" placeholder="All scenarios"></label></div>
+            <label class="field-label" for="memory-body">Remember this</label><textarea id="memory-body" class="textarea textarea-bordered" maxlength="2000" rows="3" required placeholder="Example: I have 20 minutes on weekdays. My goal is steadier tracking."></textarea>
+            <button class="btn btn-primary" type="submit">Save memory</button>
+            <button id="cancel-memory-edit" class="btn btn-ghost btn-sm" type="button" hidden>Cancel edit</button>
+          </form><div id="memory-message" class="message" aria-live="polite"></div>
+      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Coaching memory">Close</button></form>
+    </dialog><dialog id="role-dialog" class="modal" aria-labelledby="role-dialog-title">
+      <div class="modal-box ">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Agent roles">✕</button></form>
+        <p class="eyebrow">KOVAAK AGENT</p><h2 id="role-dialog-title">Agent roles</h2><p class="dialog-description">Give your coach a focus. Every role shares your player history.</p>
+        <form id="role-form">
+            <label class="field-label" for="role-edit">Role to edit</label><select id="role-edit" class="select select-bordered"><option value="">Create new role</option></select>
+            <label class="field-label" for="role-name">Role name</label><input id="role-name" class="input input-bordered" maxlength="80" required>
+            <label class="field-label" for="role-instructions">Coaching focus</label><textarea id="role-instructions" class="textarea textarea-bordered" rows="3" maxlength="2000" required></textarea>
+            <button class="btn btn-neutral btn-sm" type="submit">Save role</button>
+          </form><div id="role-message" class="message" aria-live="polite"></div>
+      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Agent roles">Close</button></form>
+    </dialog><dialog id="report-dialog" class="modal" aria-labelledby="report-dialog-title">
+      <div class="modal-box modal-wide">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Saved review">✕</button></form>
+        <p class="eyebrow">KOVAAK AGENT</p><h2 id="report-dialog-title">Saved review</h2><p class="dialog-description">Your coaching journal, kept locally.</p>
+        <div id="saved-report-body" class="digest"></div>
+      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Saved review">Close</button></form>
+    </dialog><div id="ui-toast" class="toast toast-end toast-bottom" role="status" aria-live="polite" hidden><div class="alert alert-success"><span id="ui-toast-text"></span></div></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

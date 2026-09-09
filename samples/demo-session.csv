@@ -1,0 +1,5 @@
+Timestamp,Scenario,Score,Accuracy,Duration
+2026-08-30 18:05:00,1wall6targets small,912.4,86.2%,60
+2026-08-30 18:12:00,1wall6targets small,948.1,88.7%,60
+2026-08-30 18:20:00,Close Long Strafes Invincible,7421,41.8%,120
+
