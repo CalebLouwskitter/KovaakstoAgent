@@ -10,8 +10,10 @@ Exposes local REST endpoints:
 - POST /api/model/key     -> Store session API key in memory
 - POST /api/model/test    -> Run connection test with active provider
 - POST /api/digest        -> Generate a selected-period AI coaching report
+- POST /api/detect        -> Find KovaaK's stats folders in Steam libraries
+- POST /api/desktop/autostart -> Toggle start-with-Windows (desktop app only)
 
-Serves static UI files (/index.html, /app.js, /styles.css, /vendor/daisyui.css) from the 'web' folder.
+Serves static UI files (/index.html, /app.js, /styles.css, /vendor/daisyui.css, /favicon.ico) from the 'web' folder.
 """
 
 from __future__ import annotations
@@ -28,19 +30,33 @@ import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Protocol
 from urllib.parse import parse_qs, urlparse
 
 from .model import ModelError
+from .paths import legacy_data_dir, migrate_legacy_data, resource_root, user_data_dir
 from .service import AppService
+from .steam import find_stats_folders
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = resource_root()
 WEB_ROOT = ROOT / "web"
+
+
+class DesktopIntegration(Protocol):
+    """Hooks the desktop shell provides; absent when serving a regular browser."""
+
+    def autostart_available(self) -> bool: ...
+
+    def autostart_enabled(self) -> bool: ...
+
+    def set_autostart(self, enabled: bool) -> None: ...
 
 
 class ApiHandler(BaseHTTPRequestHandler):
     """HTTP request handler routing REST API calls and static file requests."""
     service: AppService
+    desktop: DesktopIntegration | None = None
 
     def log_message(self, fmt: str, *args) -> None:
         """Format request logs with a '[local]' prefix."""
@@ -63,6 +79,19 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         super().end_headers()
 
+    def _reject(self, message: str, status: HTTPStatus) -> None:
+        """Refuse a request without acting on it, then close the connection.
+
+        A small declared body is read and discarded first: closing a socket with
+        unread bytes makes Windows reset it, so the client would never see the refusal.
+        """
+        lengths = self.headers.get_all("Content-Length", [])
+        if (len(lengths) == 1 and lengths[0].isascii() and lengths[0].isdigit()
+                and int(lengths[0]) <= 1_000_000 and not self.headers.get_all("Transfer-Encoding")):
+            self.rfile.read(int(lengths[0]))
+        self.close_connection = True
+        self._json({"error": message}, status)
+
     def _local_request(self, *, write: bool = False) -> bool:
         """Reject foreign browser requests before reading data or invoking actions.
 
@@ -75,7 +104,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             authorities.update({"127.0.0.1", "localhost"})
         hosts = self.headers.get_all("Host", [])
         if len(hosts) != 1 or hosts[0].lower() not in authorities:
-            self._json({"error": "Use this app's local address and port."}, HTTPStatus.FORBIDDEN)
+            self._reject("Use this app's local address and port.", HTTPStatus.FORBIDDEN)
             return False
         authority = hosts[0].lower()
         expected = urlparse("http://" + authority)
@@ -97,12 +126,12 @@ class ApiHandler(BaseHTTPRequestHandler):
                 valid = (values[0] in {"same-origin", "none"} if header == "Sec-Fetch-Site"
                          else same_origin(values[0], referrer=header == "Referer"))
             if not valid:
-                self._json({"error": "Cross-origin requests are not allowed."}, HTTPStatus.FORBIDDEN)
+                self._reject("Cross-origin requests are not allowed.", HTTPStatus.FORBIDDEN)
                 return False
         if write:
             types = self.headers.get_all("Content-Type", [])
             if len(types) != 1 or types[0].split(";", 1)[0].strip().lower() != "application/json":
-                self._json({"error": "Send application/json."}, HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+                self._reject("Send application/json.", HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
                 return False
         return True
 
@@ -128,6 +157,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             "/app.js": "app.js",
             "/styles.css": "styles.css",
             "/vendor/daisyui.css": "vendor/daisyui.css",
+            "/favicon.ico": "favicon.ico",
         }
         filename = allowed.get(name)
         if not filename:
@@ -136,7 +166,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         path = WEB_ROOT / filename
         body = path.read_bytes()
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", (mimetypes.guess_type(path.name)[0] or "application/octet-stream") + "; charset=utf-8")
+        content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        if content_type.startswith("text/") or content_type.endswith("javascript"):
+            content_type += "; charset=utf-8"
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
@@ -149,7 +182,11 @@ class ApiHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             if parsed.path == "/api/status":
-                self._json(self.service.status())
+                status = self.service.status()
+                if self.desktop:
+                    status["desktop"] = {"autostart_available": self.desktop.autostart_available(),
+                                         "autostart": self.desktop.autostart_enabled()}
+                self._json(status)
             elif parsed.path == "/api/runs":
                 query = parse_qs(parsed.query)
                 limit = int(query.get("limit", ["25"])[0])
@@ -226,6 +263,15 @@ class ApiHandler(BaseHTTPRequestHandler):
                 self._json(self.service.memory.save_note(payload))
             elif parsed.path == "/api/memory/role":
                 self._json(self.service.memory.save_role(payload))
+            elif parsed.path == "/api/detect":
+                self._json({"folders": [str(folder) for folder in find_stats_folders()]})
+            elif parsed.path == "/api/desktop/autostart":
+                if not self.desktop:
+                    raise ValueError("Start with Windows is available in the desktop app.")
+                if not isinstance(payload.get("enabled"), bool):
+                    raise ValueError("enabled must be true or false.")
+                self.desktop.set_autostart(payload["enabled"])
+                self._json({"autostart": self.desktop.autostart_enabled()})
             elif parsed.path == "/api/reviews/schedule":
                 if not isinstance(payload.get("enabled"), bool):
                     raise ValueError("enabled must be true or false.")
@@ -246,13 +292,31 @@ class ApiHandler(BaseHTTPRequestHandler):
             self._json({"error": f"Unexpected local error: {exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
-def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
-    """Initialize service, bind ThreadingHTTPServer, register graceful shutdown, and launch browser."""
+def create_server(host: str = "127.0.0.1", port: int = 8765,
+                  data_dir: str | Path | None = None) -> tuple[ThreadingHTTPServer, AppService]:
+    """Prepare user data, build the service and bind the local HTTP server (not yet serving).
+
+    Port 0 binds any free port; read the chosen one from server.server_port.
+    """
     if host not in {"127.0.0.1", "localhost"}:
         raise ValueError("Kovaak Agent only supports local loopback access.")
-    service = AppService(ROOT)
+    data_path = Path(data_dir).expanduser() if data_dir else user_data_dir()
+    migrated = migrate_legacy_data(legacy_data_dir(), data_path)
+    if migrated:
+        print(f"Copied your existing data from {migrated} to {data_path}. The original file was left in place.")
+    service = AppService(ROOT, data_path)
+    detected = service.autodetect_watch_path()
+    if detected:
+        print(f"Found KovaaK's stats folder: {detected}")
     ApiHandler.service = service
     server = ThreadingHTTPServer((host, port), ApiHandler)
+    return server, service
+
+
+def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True,
+        data_dir: str | Path | None = None) -> None:
+    """Initialize service, bind ThreadingHTTPServer, register graceful shutdown, and launch browser."""
+    server, service = create_server(host, port, data_dir)
     service.start()
 
     def shutdown(*_args):
@@ -263,8 +327,9 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) ->
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, shutdown)
 
-    url = f"http://{host}:{port}"
+    url = f"http://{host}:{server.server_port}"
     print(f"Kovaak Agent is running at {url}")
+    print(f"Data folder: {service.data_dir}")
     print("Press Ctrl+C to stop.")
     if open_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
@@ -276,13 +341,14 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) ->
 
 
 def main() -> None:
-    """CLI entry point parsing host, port, and browser options."""
-    parser = argparse.ArgumentParser(description="Run the local Kovaak Agent proof of concept.")
+    """CLI entry point parsing host, port, data folder, and browser options."""
+    parser = argparse.ArgumentParser(description="Run Kovaak Agent in your browser.")
     parser.add_argument("--host", default="127.0.0.1", choices=("127.0.0.1", "localhost"))
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--data-dir", help="Folder for the database (default: %%APPDATA%%\\Kovaak Agent).")
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
-    run(args.host, args.port, open_browser=not args.no_browser)
+    run(args.host, args.port, open_browser=not args.no_browser, data_dir=args.data_dir)
 
 
 if __name__ == "__main__":

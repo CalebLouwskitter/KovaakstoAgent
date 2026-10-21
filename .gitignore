@@ -16,3 +16,5 @@ data/
 backups/
 output/pdf/
 tmp/
+build/
+dist/

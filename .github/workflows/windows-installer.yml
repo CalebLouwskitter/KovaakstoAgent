@@ -1,0 +1,61 @@
+name: Windows installer
+
+# Pushing a v* tag builds the installer and attaches it to a draft GitHub release
+# (publish the draft by hand). Run manually to get the installer as a build artifact.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Read app version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (python -c "import app; print(app.__version__)").Trim()
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and "v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match app version $version in app/__init__.py"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Test and build
+        shell: pwsh
+        run: ./packaging/build.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KovaakAgent-Setup-${{ steps.version.outputs.version }}
+          path: dist/KovaakAgent-Setup-*.exe
+          if-no-files-found: error
+
+      - name: Create draft release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $notes = "docs/release-notes-$env:VERSION.md"
+          $notesArgs = if (Test-Path $notes) { @('--notes-file', $notes) } else { @('--generate-notes') }
+          gh release create $env:GITHUB_REF_NAME "dist/KovaakAgent-Setup-$env:VERSION.exe" `
+            --draft --title "Kovaak Agent $env:VERSION" @notesArgs

@@ -41,7 +41,8 @@ class LocalRequestTests(unittest.TestCase):
         self.temp.cleanup()
 
     def request(self, method, path, payload=None, headers=None, raw_headers=None):
-        body = json.dumps(payload).encode() if payload is not None else b""
+        # Only POST carries a body: unread GET bytes make Windows reset the connection before the reply is read.
+        body = json.dumps(payload).encode() if payload is not None and method == "POST" else b""
         fields = {"Host": self.host}
         if method == "POST":
             fields.update({"Content-Type": "application/json", "Content-Length": str(len(body))})
@@ -147,6 +148,39 @@ class LocalRequestTests(unittest.TestCase):
         status, headers, _ = self.request("OPTIONS", "/api/digest", headers={"Origin": "https://untrusted.example", "Access-Control-Request-Method": "POST"})
         self.assertEqual(status, 501)
         self.assertNotIn("Access-Control-Allow-Origin", headers)
+
+    def test_detect_and_icon_endpoints(self):
+        found = self.root / "stats"
+        with patch("app.server.find_stats_folders", return_value=[found]):
+            status, _, body = self.request("POST", "/api/detect", {})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body), {"folders": [str(found)]})
+        status, _, _ = self.request("POST", "/api/detect", {}, headers={"Origin": "https://untrusted.example"})
+        self.assertEqual(status, 403)
+        status, headers, body = self.request("GET", "/favicon.ico")
+        self.assertEqual(status, 200)
+        self.assertNotIn("charset", headers["Content-Type"])
+        self.assertTrue(body.startswith(b"\x00\x00\x01\x00"))
+
+    def test_autostart_requires_desktop_app(self):
+        status, _, body = self.request("GET", "/api/status")
+        self.assertNotIn("desktop", json.loads(body))
+        status, _, body = self.request("POST", "/api/desktop/autostart", {"enabled": True})
+        self.assertEqual(status, 400)
+
+    def test_autostart_toggle_through_desktop_hooks(self):
+        desktop = Mock()
+        desktop.autostart_available.return_value = True
+        desktop.autostart_enabled.side_effect = [True, True]
+        self.server.RequestHandlerClass.desktop = desktop
+        status, _, body = self.request("POST", "/api/desktop/autostart", {"enabled": True})
+        self.assertEqual((status, json.loads(body)), (200, {"autostart": True}))
+        desktop.set_autostart.assert_called_once_with(True)
+        status, _, body = self.request("GET", "/api/status")
+        self.assertEqual(json.loads(body)["desktop"], {"autostart_available": True, "autostart": True})
+        status, _, _ = self.request("POST", "/api/desktop/autostart", {"enabled": "yes"})
+        self.assertEqual(status, 400)
+        desktop.set_autostart.assert_called_once()
 
     def test_nonlocal_bind_rejected_before_service_creation(self):
         with patch("app.server.AppService") as service:
