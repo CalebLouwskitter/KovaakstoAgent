@@ -403,12 +403,18 @@ async function refresh() {
   }
   renderProvider(providerSelect.value, false);
 
+  $("#data-dir").textContent = status.data_dir || "";
+  $("#app-version").textContent = status.version ? `· version ${status.version}` : "";
+  const desktop = status.desktop;
+  $("#desktop-row").hidden = !(desktop && desktop.autostart_available);
+  if (desktop) $("#autostart").checked = Boolean(desktop.autostart);
+
   if (!status.watch_path) {
     setState($("#path-state"), "Not set");
   } else if (!status.watch_path_exists) {
     setState($("#path-state"), "Path missing", "error");
   } else {
-    setState($("#path-state"), "Watching", "ready");
+    setState($("#path-state"), status.watch_path_autodetected ? "Detected" : "Watching", "ready");
   }
 
   const dot = $("#watcher-dot");
@@ -451,6 +457,43 @@ async function saveAndImport() {
     setMessage($("#import-message"), error.message, true);
   } finally {
     button.disabled = false;
+  }
+}
+
+/**
+ * Search Steam libraries for KovaaK's stats folders and fill in the best match.
+ */
+async function detectPath() {
+  const button = $("#detect-path");
+  button.disabled = true;
+  setMessage($("#import-message"), "Looking through your Steam libraries...");
+  try {
+    const { folders } = await api("/api/detect", { method: "POST", body: "{}" });
+    if (!folders.length) {
+      setMessage($("#import-message"), "No KovaaK's stats folder was found. Paste its path instead.", true);
+      return;
+    }
+    $("#watch-path").value = folders[0];
+    const others = folders.length > 1 ? ` (${folders.length - 1} other found: ${folders.slice(1).join(", ")})` : "";
+    setMessage($("#import-message"), `Found ${folders[0]}${others}. Choose Save & scan to use it.`);
+  } catch (error) {
+    setMessage($("#import-message"), error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/**
+ * Turn start-with-Windows on or off (desktop app only).
+ */
+async function toggleAutostart() {
+  const toggle = $("#autostart");
+  try {
+    const result = await api("/api/desktop/autostart", { method: "POST", body: JSON.stringify({ enabled: toggle.checked }) });
+    toggle.checked = result.autostart;
+  } catch (error) {
+    toggle.checked = !toggle.checked;
+    setMessage($("#import-message"), error.message, true);
   }
 }
 
@@ -690,6 +733,8 @@ $("#annual-enabled").addEventListener("change", async () => {
 
 // Event listeners for user actions
 $("#save-path").addEventListener("click", saveAndImport);
+$("#detect-path").addEventListener("click", detectPath);
+$("#autostart").addEventListener("change", toggleAutostart);
 $("#connect-model").addEventListener("click", connectModel);
 $("#generate-digest").addEventListener("click", generateDigest);
 $("#refresh").addEventListener("click", refresh);

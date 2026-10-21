@@ -394,6 +394,9 @@ h2 { font-size: 1.3rem; }
 .modal-box .field-row .btn { width: 100%; }
 .backup-row { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--color-base-300); margin-top: 22px; padding-top: 20px; gap: 20px; font-size: .85rem; }
 .backup-row .hint { margin-top: 4px; }
+.detect-link { height: auto; min-height: 0; padding: 0; vertical-align: baseline; font-size: inherit; color: var(--accent-ink); }
+.data-location { margin-top: 14px; overflow-wrap: anywhere; }
+.data-location code { font-size: .68rem; }
 .modal::backdrop { background: #10151899; backdrop-filter: blur(4px); }
 .toast { z-index: 100; }
 footer { padding: 22px 2px; }

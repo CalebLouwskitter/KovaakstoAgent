@@ -1,5 +1,7 @@
 # Preview validation report
 
+> This report covers 0.1.0. For the 0.2.0 desktop app, installer and validation, see the [0.2.0 release notes](release-notes-0.2.0.md).
+
 Kovaak Agent **0.1.0 Preview**, reviewed September 9, 2026, on Windows. Licensed under MIT; see [LICENSE](../LICENSE) and [third-party notices](../THIRD_PARTY_NOTICES.md).
 
 The local workflows and request-security fix have passing evidence. **Live provider coaching has not been verified:** no API credentials were available. This release is a preview, not a fully validated stable 1.0.

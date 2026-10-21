@@ -12,13 +12,16 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+from . import __version__
 from .database import Database
 from .importer import import_path
 from .model import PROVIDERS, create_model_client, get_provider
 from .watcher import CsvWatcher
 from .memory import CoachingMemory
+from .paths import DATABASE_NAME
+from .steam import find_stats_folders
 
 
 DEFAULT_PROVIDER = "openai"
@@ -28,9 +31,10 @@ MODEL_PROVIDER_API_VERSION = 1
 class AppService:
     """Core application coordinator managing settings, storage, watching, and AI coaching."""
 
-    def __init__(self, root: str | Path):
+    def __init__(self, root: str | Path, data_dir: str | Path | None = None):
         self.root = Path(root).resolve()
-        self.database = Database(self.root / "data" / "kovaaks-agent.db")
+        self.data_dir = Path(data_dir).resolve() if data_dir else self.root / "data"
+        self.database = Database(self.data_dir / DATABASE_NAME)
         self.memory = CoachingMemory(self.database)
         # Store API keys in process memory only; seeded from environment variables if present
         self.session_api_keys = {
@@ -85,10 +89,28 @@ class AppService:
                 raise ValueError("That CSV file or folder does not exist yet.")
         definition = get_provider(provider or self.provider)
         clean_model = model.strip() or os.environ.get(definition.model_environment, definition.default_model)
+        if clean_path != self.watch_path:
+            self.database.set_setting("watch_path_autodetected", "false")
         self.database.set_setting("watch_path", clean_path)
         self.database.set_setting("model_provider", definition.id)
         self.database.set_setting(f"model_{definition.id}", clean_model)
         return self.status()
+
+    def autodetect_watch_path(self, finder: Callable[[], list[Path]] = find_stats_folders) -> str | None:
+        """On first run, point the watcher at a KovaaK's stats folder found in Steam libraries.
+
+        Runs only while no watch path was ever saved (an explicitly cleared path is respected)
+        and KOVAAKS_CSV_PATH is unset.
+        """
+        unset = "<unset>"
+        if self.database.get_setting("watch_path", unset) != unset or os.environ.get("KOVAAKS_CSV_PATH"):
+            return None
+        folders = finder()
+        if not folders:
+            return None
+        self.database.set_setting("watch_path", str(folders[0]))
+        self.database.set_setting("watch_path_autodetected", "true")
+        return str(folders[0])
 
     def set_session_key(self, api_key: str, provider: str | None = None) -> str:
         """Store an API key in process memory for the specified provider (or active provider)."""
@@ -136,7 +158,10 @@ class AppService:
             )
         return {
             "model_provider_api_version": MODEL_PROVIDER_API_VERSION,
+            "version": __version__,
+            "data_dir": str(self.data_dir),
             "watch_path": watch_path,
+            "watch_path_autodetected": self.database.get_setting("watch_path_autodetected") == "true",
             "watch_path_exists": bool(candidate and candidate.exists()),
             "provider": self.provider,
             "model": self.model,

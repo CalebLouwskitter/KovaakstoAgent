@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <meta id="theme-color" name="theme-color" content="#f2f2f2">
   <title>Kovaak Agent</title>
+  <link rel="icon" href="/favicon.ico">
   <script>
     (() => {
       const savedTheme = localStorage.getItem("kovaak-agent-theme");
@@ -184,7 +185,7 @@
               <input id="watch-path" class="input input-bordered" type="text" spellcheck="false" placeholder="…\FPSAimTrainer\stats">
               <button id="save-path" class="btn btn-primary" type="button">Save &amp; scan</button>
             </div>
-            <p class="hint">Point to the <strong>stats</strong> folder to import each completed challenge automatically, including weapon totals and aim settings.</p>
+            <p class="hint">Point to the <strong>stats</strong> folder to import each completed challenge automatically, including weapon totals and aim settings. <button id="detect-path" class="btn btn-link btn-xs detect-link" type="button">Find it in my Steam libraries</button></p>
             <div id="import-message" class="message" aria-live="polite"></div>
           </div>
         </article>
@@ -221,6 +222,8 @@
           </div>
         </article>
       </div><div class="backup-row"><div><strong>Keep a backup</strong><p class="hint">Download your runs, roles, memories and reviews together.</p></div><a class="btn btn-outline btn-sm" href="/api/backup" download>Download backup</a></div>
+      <div id="desktop-row" class="backup-row" hidden><div><strong>Start with Windows</strong><p class="hint">Open in the tray when you sign in, so new runs are captured without opening the window.</p></div><input id="autostart" class="toggle toggle-primary" type="checkbox" aria-label="Start with Windows"></div>
+      <p class="hint data-location">Data folder: <code id="data-dir">…</code> <span id="app-version" class="quiet"></span></p>
       </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Connections">Close</button></form>
     </dialog><dialog id="memory-dialog" class="modal" aria-labelledby="memory-dialog-title">
       <div class="modal-box ">

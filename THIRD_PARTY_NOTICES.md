@@ -27,3 +27,22 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Windows desktop build
+
+The Windows installer and `dist\KovaakAgent` folder also bundle the following components, each under its own license. They are not part of the source-only `python -m app.server` workflow, which uses only the Python standard library.
+
+| Component | License | Source |
+| --- | --- | --- |
+| CPython runtime | PSF License 2.0 | https://www.python.org/ |
+| pywebview | BSD-3-Clause | https://github.com/r0x0r/pywebview |
+| bottle (pywebview dependency) | MIT | https://github.com/bottlepy/bottle |
+| proxy_tools (pywebview dependency) | MIT | https://pypi.org/project/proxy_tools/ |
+| typing_extensions | PSF License 2.0 | https://github.com/python/typing_extensions |
+| pythonnet and clr_loader | MIT | https://github.com/pythonnet/pythonnet |
+| Microsoft Edge WebView2 loader and .NET interop assemblies (via pywebview) | Microsoft license, redistributable | https://developer.microsoft.com/microsoft-edge/webview2/ |
+| pystray | LGPL-3.0 | https://github.com/moses-palmer/pystray |
+| Pillow | MIT-CMU | https://github.com/python-pillow/Pillow |
+| PyInstaller bootloader | GPL-2.0-or-later with the PyInstaller bootloader exception | https://github.com/pyinstaller/pyinstaller |
+
+pystray is shipped as unmodified `.py` files in the install folder's `_internal\pystray` directory, so it can be replaced with another compatible version. Its source is available at the link above. The application's own code remains under the MIT License.
