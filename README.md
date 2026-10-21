@@ -24,7 +24,7 @@ Five tabs keep everyday tasks separate. Connections, memory editing, role editin
 
 ### Windows desktop app
 
-1. Download `KovaakAgent-Setup-0.2.0.exe` from the [Releases page](https://github.com/CalebLouwskitter/KovaakstoAgent/releases) and run it. It installs for your user only, with no admin prompt. The installer isn't code-signed, so SmartScreen may ask you to confirm with **More info → Run anyway**.
+1. Download `KovaakAgent-Setup-<version>.exe` from the [latest release](https://github.com/CalebLouwskitter/KovaakstoAgent/releases/latest) and run it. It installs for your user only, with no admin prompt. The installer isn't code-signed, so SmartScreen may ask you to confirm with **More info → Run anyway**. If no installer is listed there yet, [build it yourself](#build-the-windows-installer) or run from source as described below.
 2. Open **Kovaak Agent** from the Start menu. On first run it searches your Steam libraries for KovaaK's `FPSAimTrainer\stats` folder and starts importing from it. Check **Connections** to see or change the folder.
 3. Closing the window keeps the app in the notification area, so new runs are still captured. Right-click the tray icon to reopen it, turn **Start with Windows** on or off, or **Quit**.
 
