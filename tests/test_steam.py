@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -28,6 +29,7 @@ VDF = r'''
 '''
 
 
+@unittest.skipUnless(sys.platform == "win32", "Steam path detection")
 class SteamDetectionTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
