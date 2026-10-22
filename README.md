@@ -14,7 +14,7 @@ Five tabs keep everyday tasks separate. Connections, memory editing, role editin
 
 | Tab | What you can do |
 | --- | --- |
-| **Progress** | Review a day, Monday-start week, month, or calendar year; compare scores within each scenario; see practice time, active days, and accuracy. |
+| **Progress** | Review a day, Monday-start week, month, or calendar year; compare scores within each scenario; see practice time, active days, and accuracy. Track practice streaks and personal bests set in the selected period with score improvements. |
 | **Latest session** | Inspect the latest imported run, recent exports, shot conversion, and settings when present in the CSV. |
 | **Coach** | Choose a period and role, then request advice using your retained history, saved memories, and previous reports. |
 | **Memory** | Add and edit goals, preferences, constraints, notes, and practice outcomes. Complete or archive memories, restore archived entries, and customize roles. |
