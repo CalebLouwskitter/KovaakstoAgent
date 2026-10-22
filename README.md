@@ -1,5 +1,7 @@
 # Kovaak Agent
 
+[![Tests](https://github.com/CalebLouwskitter/KovaakstoAgent/actions/workflows/tests.yml/badge.svg)](https://github.com/CalebLouwskitter/KovaakstoAgent/actions/workflows/tests.yml)
+
 A local training dashboard that turns Kovaak's CSV exports into progress you can review and coaching you can continue across sessions, roles, and model providers.
 
 **Status: 0.2.0 preview · MIT licensed.** Now a Windows desktop app with an installer, tray icon and automatic stats-folder detection. Live coaching remains unverified because no API credentials were available. See the [0.2.0 release notes](docs/release-notes-0.2.0.md), the [0.1.0 validation report](docs/release-readiness.md), and the [source file list](docs/release-files.txt).
@@ -140,6 +142,8 @@ To restore, quit all app instances (including the tray icon), move the existing 
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+CI runs the test suite automatically on push to `main` and on pull requests across Windows and Ubuntu.
 
 For frontend contributors, `node --check web/app.js` checks JavaScript syntax; Node is only needed for that optional development check. The UI is served directly from `web/`, with bundled CSS and no build step.
 
