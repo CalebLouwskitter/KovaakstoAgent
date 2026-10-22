@@ -423,7 +423,7 @@ async function refresh() {
   updateSummary(status.summary);
   await loadRuns();
   await loadLatestDigest();
-  await Promise.all([loadDashboard(), loadReviewArchive()]);
+  await Promise.all([loadDashboard(), loadRecords(), loadReviewArchive()]);
   if (!memoryLoaded) await loadMemory();
 }
 
@@ -616,6 +616,63 @@ async function loadDashboard() {
   $("#annual-schedule").textContent = result.schedule.enabled ? `Scheduled: ${result.schedule.next_due.slice(0, 10)} at 00:00, computer local time. ${result.schedule.error ? `Review error: ${result.schedule.error}` : ""}` : "Automatic year-end reviews are paused.";
 }
 
+let recordsRequest = 0;
+async function loadRecords() {
+  const request = ++recordsRequest;
+  const query = new URLSearchParams({ period: $("#review-period").value, date: $("#review-date").value });
+  const result = await api(`/api/records?${query}`);
+  if (request !== recordsRequest) return;
+
+  const current = result.current_streak ?? result.streaks?.current ?? 0;
+  const longest = result.longest_streak ?? result.streaks?.longest ?? 0;
+  $("#current-streak").textContent = `${number(current, 0)} day${current === 1 ? "" : "s"}`;
+  $("#longest-streak").textContent = `${number(longest, 0)} day${longest === 1 ? "" : "s"}`;
+
+  const table = $("#period-records");
+  table.replaceChildren();
+
+  const records = result.records || [];
+  if (!records.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.className = "empty-row";
+    cell.textContent = "No personal bests set in this period. Choose an earlier date or import your stats.";
+    row.append(cell);
+    table.append(row);
+    return;
+  }
+
+  for (const item of records) {
+    const row = document.createElement("tr");
+
+    const cellScenario = document.createElement("td");
+    cellScenario.textContent = item.scenario || "Unknown";
+
+    const cellNew = document.createElement("td");
+    cellNew.textContent = number(item.new_best ?? item.score, 1);
+
+    const cellPrev = document.createElement("td");
+    cellPrev.textContent = item.previous_best == null ? "—" : number(item.previous_best, 1);
+
+    const cellDelta = document.createElement("td");
+    if (item.delta == null) {
+      cellDelta.textContent = "—";
+    } else {
+      const badge = document.createElement("span");
+      badge.className = "badge badge-success badge-soft";
+      badge.textContent = `+${number(item.delta, 1)}`;
+      cellDelta.append(badge);
+    }
+
+    const cellDate = document.createElement("td");
+    cellDate.textContent = shortDate(item.observed_at);
+
+    row.append(cellScenario, cellNew, cellPrev, cellDelta, cellDate);
+    table.append(row);
+  }
+}
+
 async function loadMemory() {
   const data = await api("/api/memory");
   savedRoles = data.roles;
@@ -698,7 +755,12 @@ async function loadReviewArchive() {
 
 const today = new Date();
 $("#review-date").value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-for (const id of ["#review-period", "#review-date"]) $(id).addEventListener("change", () => loadDashboard().catch(error => setMessage($("#dashboard-message"), error.message, true)));
+for (const id of ["#review-period", "#review-date"]) {
+  $(id).addEventListener("change", () => {
+    loadDashboard().catch(error => setMessage($("#dashboard-message"), error.message, true));
+    loadRecords().catch(error => setMessage($("#records-message"), error.message, true));
+  });
+}
 $("#memory-form").addEventListener("submit", async event => {
   event.preventDefault(); const button = event.currentTarget.querySelector("button"); button.disabled = true;
   try {
