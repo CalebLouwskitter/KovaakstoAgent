@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import http.client
+import json
 import tempfile
+import threading
 import unittest
+from contextlib import closing
 from datetime import date, timedelta
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from app.database import Database
@@ -13,6 +18,9 @@ from app.records import (
     get_records,
     get_streaks,
 )
+from app.server import ApiHandler
+from app.service import AppService
+
 
 
 class RecordsQueryTests(unittest.TestCase):
@@ -167,5 +175,100 @@ class RecordsQueryTests(unittest.TestCase):
         self.assertEqual(daily["records"][0]["delta"], 10.0)
 
 
+class RecordsEndpointTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.service = AppService(self.root)
+        self.service.session_api_keys = {key: "" for key in self.service.session_api_keys}
+
+        class Handler(ApiHandler):
+            def log_message(self, *_args):
+                pass
+
+        Handler.service = self.service
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.host = f"127.0.0.1:{self.server.server_port}"
+        self.origin = "http://" + self.host
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
+        self.service.stop()
+        self.temp.cleanup()
+
+    def get(self, path):
+        headers = {
+            "Host": self.host,
+            "Origin": self.origin,
+            "Referer": self.origin + "/#progress",
+            "Sec-Fetch-Site": "same-origin",
+        }
+        with closing(http.client.HTTPConnection("127.0.0.1", self.server.server_port, timeout=5)) as conn:
+            conn.putrequest("GET", path, skip_host=True, skip_accept_encoding=True)
+            for k, v in headers.items():
+                conn.putheader(k, v)
+            conn.endheaders()
+            response = conn.getresponse()
+            return response.status, dict(response.getheaders()), json.loads(response.read().decode("utf-8"))
+
+    def test_records_endpoint_response_shape(self):
+        # Insert synthetic runs
+        with self.service.database.connect() as conn:
+            conn.execute(
+                "INSERT INTO sources(path, size_bytes, mtime_ns, status) VALUES('synth.csv', 10, 10, 'ready')"
+            )
+            conn.execute(
+                """
+                INSERT INTO runs(source_path, source_row, row_hash, observed_at, scenario, score, raw_json)
+                VALUES
+                ('synth.csv', 1, 'h1', '2026-10-20 10:00:00', 'Ascended Tracking', 100.0, '{}'),
+                ('synth.csv', 2, 'h2', '2026-10-21 11:00:00', 'Ascended Tracking', 120.0, '{}'),
+                ('synth.csv', 3, 'h3', '2026-10-22 12:00:00', 'Tile Frenzy', 50.0, '{}')
+                """
+            )
+
+        status, headers, data = self.get("/api/records?period=week&date=2026-10-22")
+        self.assertEqual(status, 200)
+        self.assertIn("application/json", headers.get("Content-Type", ""))
+        self.assertIn("no-store", headers.get("Cache-Control", ""))
+
+        # Check expected shape keys
+        self.assertIn("period", data)
+        self.assertEqual(data["period"], "weekly")
+        self.assertIn("start", data)
+        self.assertEqual(data["start"], "2026-10-19")
+        self.assertIn("end_exclusive", data)
+        self.assertEqual(data["end_exclusive"], "2026-10-26")
+        self.assertIn("current_streak", data)
+        self.assertEqual(data["current_streak"], 3)
+        self.assertIn("longest_streak", data)
+        self.assertEqual(data["longest_streak"], 3)
+        self.assertIn("records", data)
+        self.assertIsInstance(data["records"], list)
+        self.assertEqual(len(data["records"]), 3)
+
+        # Check record items fields
+        item = data["records"][0]
+        for field in ("scenario", "score", "new_best", "previous_best", "delta", "observed_at", "date"):
+            self.assertIn(field, item)
+
+        # Ascended Tracking 120 beats 100 with delta 20
+        pb_120 = next(r for r in data["records"] if r["score"] == 120.0)
+        self.assertEqual(pb_120["scenario"], "Ascended Tracking")
+        self.assertEqual(pb_120["previous_best"], 100.0)
+        self.assertEqual(pb_120["delta"], 20.0)
+
+        # Test default parameters
+        default_status, _, default_data = self.get("/api/records")
+        self.assertEqual(default_status, 200)
+        self.assertIn("records", default_data)
+        self.assertIn("current_streak", default_data)
+
+
 if __name__ == "__main__":
     unittest.main()
+

@@ -230,3 +230,7 @@ at the next review. Do not infer outcomes from the passage of time alone.
         if report and not report.get("provider"):
             report["provider"] = self.provider
         return report
+
+    def records(self, period: str = "week", date: str | None = None) -> dict[str, Any]:
+        """Return practice streaks and personal bests set in the specified period."""
+        return self.database.records(period=period, anchor=date)
