@@ -52,22 +52,57 @@ class ImportResult:
 
 
 def _read_text(path: Path) -> str:
-    """Read file content attempting common Windows and UTF-8 encodings before falling back with replacement."""
+    """Read file content attempting common Windows, UTF-16, and UTF-8 encodings."""
     raw = path.read_bytes()
-    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
+    if not raw:
+        return ""
+
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
-            return raw.decode(encoding)
+            return raw.decode("utf-16")
+        except UnicodeDecodeError:
+            pass
+
+    for encoding in ("utf-8-sig", "utf-8"):
+        try:
+            text = raw.decode(encoding)
+            if "\x00" not in text:
+                return text
         except UnicodeDecodeError:
             continue
-    return raw.decode("utf-8", errors="replace")
+
+    if b"\x00" in raw:
+        for enc in ("utf-16", "utf-16-le", "utf-16-be"):
+            try:
+                text = raw.decode(enc)
+                if "\x00" not in text:
+                    return text
+            except UnicodeDecodeError:
+                pass
+        raise UnicodeDecodeError("utf-8", raw, 0, 1, "File contains null bytes / invalid encoding")
+
+    try:
+        text = raw.decode("cp1252")
+        if "\x00" not in text:
+            return text
+    except UnicodeDecodeError:
+        pass
+
+    raise UnicodeDecodeError("utf-8", raw, 0, 1, "Unable to decode text with supported encodings")
 
 
-def _dialect(text: str) -> csv.Dialect:
+class SemicolonDialect(csv.excel):
+    delimiter = ";"
+
+
+def _dialect(text: str) -> csv.Dialect | type[csv.Dialect]:
     """Sniff CSV delimiter (comma, semicolon, tab, pipe) or fall back to Excel defaults."""
     sample = text[:8192]
     try:
         return csv.Sniffer().sniff(sample, delimiters=",;\t|")
     except csv.Error:
+        if sample.count(";") > sample.count(","):
+            return SemicolonDialect
         return csv.excel
 
 
@@ -78,8 +113,20 @@ def _clean_key(value: str) -> str:
 
 def _rows(text: str) -> list[list[str]]:
     """Parse CSV text into stripped non-empty rows using detected dialect."""
-    reader = csv.reader(io.StringIO(text), dialect=_dialect(text))
-    return [[cell.strip() for cell in row] for row in reader if any(cell.strip() for cell in row)]
+    try:
+        reader = csv.reader(io.StringIO(text), dialect=_dialect(text))
+        return [[cell.strip() for cell in row] for row in reader if any(cell.strip() for cell in row)]
+    except csv.Error:
+        rows = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            delim = ";" if ";" in line and line.count(";") >= line.count(",") else ","
+            cells = [cell.strip().strip('"').strip() for cell in line.split(delim)]
+            if any(cells):
+                rows.append(cells)
+        return rows
 
 
 def _looks_tabular(rows: list[list[str]]) -> bool:
@@ -174,7 +221,11 @@ def _parse_kovaaks_stats(rows: list[list[str]]) -> dict[str, str]:
 
 def parse_csv(path: Path) -> tuple[str, list[dict[str, str]]]:
     """Parse a CSV file into a format mode ('kovaaks_stats', 'table', or 'key_value') and a list of records."""
-    rows = _rows(_read_text(path))
+    try:
+        text = _read_text(path)
+    except (UnicodeDecodeError, ValueError):
+        return "decode-error", []
+    rows = _rows(text)
     if not rows:
         return "empty", []
 
@@ -227,7 +278,12 @@ def _to_float(value: str | None) -> float | None:
     cleaned = value.strip().replace("%", "").replace(" ", "")
     if not cleaned:
         return None
-    if cleaned.count(",") == 1 and "." not in cleaned:
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif cleaned.count(",") == 1:
         cleaned = cleaned.replace(",", ".")
     else:
         cleaned = cleaned.replace(",", "")
