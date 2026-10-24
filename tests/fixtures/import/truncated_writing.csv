@@ -1,0 +1,3 @@
+Kill #,Timestamp,Bot,Weapon,TTK,Shots,Hits,Accuracy,Damage Done,Damage Possible,Efficiency,Cheated,OverShots
+1,00:00:01,Target1,Blaster,0.5,2,1,50.0,50.0,100.0,50.0,0,0
+2,00:00:02,Target2,Blaster,0.6,
