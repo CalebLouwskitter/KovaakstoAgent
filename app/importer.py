@@ -16,13 +16,17 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from .database import Database
+
+logger = logging.getLogger(__name__)
 
 
 # Common alias mappings to tolerate slight header variations across game patches
@@ -55,6 +59,44 @@ class ImportResult:
 
     def to_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
+
+
+@dataclass
+class ImportReport:
+    """Aggregated import report containing individual file results and summary metrics."""
+    results: list[ImportResult]
+
+    def summary(self) -> dict[str, Any]:
+        """Aggregate counts per outcome and per reason."""
+        outcomes: dict[str, int] = {}
+        reasons: dict[str, int] = {}
+        for res in self.results:
+            outcomes[res.outcome] = outcomes.get(res.outcome, 0) + 1
+            if res.reason:
+                reasons[res.reason] = reasons.get(res.reason, 0) + 1
+        return {
+            "total": len(self.results),
+            "outcomes": outcomes,
+            "reasons": reasons,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "results": [r.to_dict() for r in self.results],
+            "summary": self.summary(),
+        }
+
+    def __iter__(self) -> Iterator[ImportResult]:
+        return iter(self.results)
+
+    def __len__(self) -> int:
+        return len(self.results)
+
+    def __getitem__(self, index: int | slice) -> Any:
+        return self.results[index]
+
+    def __bool__(self) -> bool:
+        return bool(self.results)
 
 
 def _read_text(path: Path) -> str:
@@ -542,13 +584,81 @@ def discover_csv_files(path: str | Path) -> list[Path]:
     return sorted(candidate.rglob("*.csv"), key=lambda item: item.stat().st_mtime, reverse=True)
 
 
-def import_path(database: Database, path: str | Path, force: bool = False) -> list[ImportResult]:
-    """Scan and import all CSV files at the specified path, skipping files with unchanged signatures."""
-    results = []
-    for csv_path in discover_csv_files(path):
-        stat = csv_path.stat()
-        signature = database.source_signature(str(csv_path.resolve()))
-        if not force and signature == (stat.st_size, stat.st_mtime_ns):
-            continue
-        results.append(import_file(database, csv_path))
-    return results
+def import_path(
+    database: Database,
+    path: str | Path,
+    force: bool = False,
+    now: float | None = None,
+) -> ImportReport:
+    """Scan and import all CSV files at the specified path, skipping files with unchanged signatures.
+
+    Treats files modified within the last 2 seconds as possibly still being written,
+    skipping them with reason 'incomplete' so subsequent scans can retry.
+    Never raises an unhandled exception.
+    """
+    results: list[ImportResult] = []
+    current_time = now if now is not None else time.time()
+
+    try:
+        csv_files = discover_csv_files(path)
+    except Exception as exc:
+        logger.warning("Failed to discover CSV files at %s: %s", path, exc)
+        return ImportReport([])
+
+    for csv_path in csv_files:
+        try:
+            stat = csv_path.stat()
+            resolved = str(csv_path.resolve())
+            signature = database.source_signature(resolved)
+
+            if not force and signature == (stat.st_size, stat.st_mtime_ns):
+                results.append(
+                    ImportResult(
+                        path=resolved,
+                        mode="skip",
+                        rows_seen=0,
+                        inserted=0,
+                        updated=0,
+                        unchanged=0,
+                        removed=0,
+                        reason="duplicate",
+                    )
+                )
+                continue
+
+            if not force and (current_time - stat.st_mtime < 2.0):
+                results.append(
+                    ImportResult(
+                        path=resolved,
+                        mode="skip",
+                        rows_seen=0,
+                        inserted=0,
+                        updated=0,
+                        unchanged=0,
+                        removed=0,
+                        reason="incomplete",
+                    )
+                )
+                continue
+
+            results.append(import_file(database, csv_path))
+        except Exception as exc:
+            resolved = str(csv_path.resolve()) if hasattr(csv_path, "resolve") else str(csv_path)
+            reason = "decode-error" if isinstance(exc, UnicodeDecodeError) else f"error: {exc}"
+            results.append(
+                ImportResult(
+                    path=resolved,
+                    mode="error",
+                    rows_seen=0,
+                    inserted=0,
+                    updated=0,
+                    unchanged=0,
+                    removed=0,
+                    reason=reason,
+                    outcome="error",
+                )
+            )
+
+    report = ImportReport(results)
+    logger.info("Imported path %s: %s", path, report.summary())
+    return report
