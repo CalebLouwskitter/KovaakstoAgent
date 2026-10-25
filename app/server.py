@@ -5,6 +5,7 @@ Exposes local REST endpoints:
 - GET  /api/runs          -> Recent normalized runs (limit parameter)
 - GET  /api/summary       -> Rolling aggregate metrics (days parameter)
 - GET  /api/digest/latest -> Most recent cached coaching digest
+- GET  /api/records       -> Personal bests and practice streaks (period, date parameters)
 - POST /api/settings      -> Update watch path, model, or provider
 - POST /api/import        -> Trigger manual on-demand CSV scan
 - POST /api/model/key     -> Store session API key in memory
@@ -200,6 +201,9 @@ class ApiHandler(BaseHTTPRequestHandler):
             elif parsed.path == "/api/dashboard":
                 query = parse_qs(parsed.query)
                 self._json(self.service.memory.dashboard(query.get("period", ["weekly"])[0], query.get("date", [None])[0]))
+            elif parsed.path == "/api/records":
+                query = parse_qs(parsed.query)
+                self._json(self.service.records(query.get("period", ["week"])[0], query.get("date", [None])[0]))
             elif parsed.path == "/api/memory":
                 self._json({"roles": self.service.memory.roles(), "notes": self.service.memory.notes(),
                             "schedule": self.service.memory.schedule_status()})

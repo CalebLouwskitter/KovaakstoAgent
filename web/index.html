@@ -64,6 +64,22 @@
           <p class="hint comparison-note">Scores are compared within the same scenario. A period in progress is compared with the full previous period; missing sessions are not treated as zero performance.</p>
           <div id="dashboard-message" class="message" aria-live="polite"></div>
         </div>
+      </section>
+      <section class="card app-card records-card" aria-labelledby="records-title">
+        <div class="card-body">
+          <div class="panel-heading">
+            <div><p class="step">PRACTICE STREAKS &amp; PERSONAL BESTS</p><h2 id="records-title">Records</h2></div>
+          </div>
+
+          <div class="records-metrics review-metrics stats">
+            <div><span>Current streak</span><strong id="current-streak">—</strong><small id="current-streak-context">Consecutive practice days</small></div>
+            <div><span>Longest streak</span><strong id="longest-streak">—</strong><small id="longest-streak-context">All-time practice streak</small></div>
+          </div>
+
+          <div class="table-wrap"><table class="table table-zebra"><thead><tr><th>Scenario</th><th>New best</th><th>Previous best</th><th>+Delta</th><th>Date</th></tr></thead><tbody id="period-records"></tbody></table></div>
+          <p class="hint records-note">Personal bests set during the selected period. Ties and lower scores do not count as new records.</p>
+          <div id="records-message" class="message" aria-live="polite"></div>
+        </div>
       </section></section><section id="view-session" class="workspace-panel" role="tabpanel" aria-labelledby="tab-session" tabindex="0" hidden>      <section class="section-heading" aria-labelledby="performance-title">
         <div>
           <p class="eyebrow">LATEST SESSION</p>

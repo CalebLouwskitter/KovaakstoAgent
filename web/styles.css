@@ -41,9 +41,10 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-.longterm-card, .memory-grid, .review-archive { margin-bottom: 28px; }
-.longterm-card .table-wrap { max-height: 340px; overflow: auto; }
-.longterm-card thead { position: sticky; top: 0; z-index: 1; background: var(--color-base-100); }
+.longterm-card, .records-card, .memory-grid, .review-archive { margin-bottom: 28px; }
+.longterm-card .table-wrap, .records-card .table-wrap { max-height: 340px; overflow: auto; }
+.longterm-card thead, .records-card thead { position: sticky; top: 0; z-index: 1; background: var(--color-base-100); }
+.records-metrics { grid-template-columns: repeat(2, 1fr); max-width: 520px; }
 .review-controls { display: flex; flex-wrap: wrap; gap: 16px; }
 .review-controls label { flex: 1; min-width: 150px; font-size: .78rem; }
 .review-controls input, .review-controls select { display: block; width: 100%; margin-top: 6px; }

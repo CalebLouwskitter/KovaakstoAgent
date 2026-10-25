@@ -492,3 +492,19 @@ class Database:
         report = dict(row)
         report["evidence"] = json.loads(report.pop("evidence_json"))
         return report
+
+    def personal_bests(self) -> list[dict[str, Any]]:
+        """Return personal best per scenario with best score, date set, and previous best."""
+        from .records import get_all_personal_bests
+        return get_all_personal_bests(self)
+
+    def streaks(self, as_of: str | None = None) -> dict[str, int]:
+        """Return current and longest practice streak in days."""
+        from .records import get_streaks
+        return get_streaks(self, as_of=as_of)
+
+    def records(self, period: str = "week", anchor: str | None = None) -> dict[str, Any]:
+        """Return streaks and PBs set in a given period."""
+        from .records import get_records
+        return get_records(self, period=period, anchor=anchor)
+
