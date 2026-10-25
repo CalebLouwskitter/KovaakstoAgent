@@ -75,6 +75,26 @@ To find it by hand, use Steam's **Browse local files** action on KovaaK's, then 
 
 You can monitor a single CSV or a folder of per-run CSV files. The watcher checks for changes every two seconds and waits for a stable write before importing. Supported formats include row-based CSVs, key/value exports, and native multi-section Kovaak's stats. Native sections are combined into one run. Unsupported exports and missing metrics may need additional parser support.
 
+### Supported files and skipped files
+
+The importer handles three CSV layouts across UTF-8, UTF-8 BOM, UTF-16, and Windows ANSI (CP1252) encodings, supporting comma or semicolon delimiters and European decimal notation:
+1. **Native KovaaK's exports**: Multi-section files containing a per-kill table, weapon performance summary, and challenge settings.
+2. **Tabular CSVs**: Multi-row spreadsheets with column headers matching recognized aim metrics.
+3. **Key-value exports**: Two-column summary files pairing labels with values.
+
+Files that cannot be ingested are safely skipped without interrupting imports. Each skipped file is recorded with a specific reason:
+
+- **`empty`**: The file has 0 bytes or contains only whitespace.
+  - *What to do*: Delete the blank file or check if an external script created an empty placeholder.
+- **`incomplete`**: The file is truncated, missing an essential `Score` metric, or was modified within the last two seconds while the game is still flushing data to disk.
+  - *What to do*: If the run was just completed, wait a moment—the watcher will automatically retry once writing finishes. If the game crashed mid-challenge or the run was aborted before finishing, the file can be safely ignored or deleted.
+- **`unrecognized-format`**: The CSV does not match any supported layout or lacks identifiable aim metrics (e.g. an unrelated spreadsheet or export).
+  - *What to do*: Verify that the file is an aim-trainer stats export and that column headers match standard metrics (Scenario, Score, Accuracy, Duration, Timestamp).
+- **`duplicate`**: The file's size and modification timestamp match an already imported source in the database.
+  - *What to do*: No action needed. Use the force option if you need to re-import modified history.
+- **`decode-error`**: The file contains invalid byte sequences or null-byte corrupted binary data that could not be decoded.
+  - *What to do*: Re-save the file as UTF-8, UTF-16, or Windows ANSI text.
+
 ## Coaching that carries context
 
 ![Memory tab with example player goals, a constraint, an outcome, and shared agent roles](docs/screenshots/memory.jpg)
