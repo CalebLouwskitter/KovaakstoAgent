@@ -1,0 +1,10 @@
+Scenario:,Synthetic Extra Keys
+Score:,160.0
+Accuracy:,82.0%
+Duration:,60
+Timestamp:,2026-08-30 12:35:00
+Shots:,50
+Hits:,41
+NewGameEngineSetting:,Ultra
+CustomPlayerCalibration:,99.4
+ExperimentalInputSmoothing:,Off

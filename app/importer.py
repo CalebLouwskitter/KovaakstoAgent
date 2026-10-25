@@ -16,13 +16,17 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from .database import Database
+
+logger = logging.getLogger(__name__)
 
 
 # Common alias mappings to tolerate slight header variations across game patches
@@ -46,28 +50,107 @@ class ImportResult:
     updated: int
     unchanged: int
     removed: int
+    reason: str | None = None
+    outcome: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.outcome is None:
+            object.__setattr__(self, "outcome", "skipped" if self.reason else "imported")
 
     def to_dict(self) -> dict[str, Any]:
         return self.__dict__.copy()
 
 
+@dataclass
+class ImportReport:
+    """Aggregated import report containing individual file results and summary metrics."""
+    results: list[ImportResult]
+
+    def summary(self) -> dict[str, Any]:
+        """Aggregate counts per outcome and per reason."""
+        outcomes: dict[str, int] = {}
+        reasons: dict[str, int] = {}
+        for res in self.results:
+            outcomes[res.outcome] = outcomes.get(res.outcome, 0) + 1
+            if res.reason:
+                reasons[res.reason] = reasons.get(res.reason, 0) + 1
+        return {
+            "total": len(self.results),
+            "outcomes": outcomes,
+            "reasons": reasons,
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "results": [r.to_dict() for r in self.results],
+            "summary": self.summary(),
+        }
+
+    def __iter__(self) -> Iterator[ImportResult]:
+        return iter(self.results)
+
+    def __len__(self) -> int:
+        return len(self.results)
+
+    def __getitem__(self, index: int | slice) -> Any:
+        return self.results[index]
+
+    def __bool__(self) -> bool:
+        return bool(self.results)
+
+
 def _read_text(path: Path) -> str:
-    """Read file content attempting common Windows and UTF-8 encodings before falling back with replacement."""
+    """Read file content attempting common Windows, UTF-16, and UTF-8 encodings."""
     raw = path.read_bytes()
-    for encoding in ("utf-8-sig", "utf-8", "cp1252"):
+    if not raw:
+        return ""
+
+    if raw.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
-            return raw.decode(encoding)
+            return raw.decode("utf-16")
+        except UnicodeDecodeError:
+            pass
+
+    for encoding in ("utf-8-sig", "utf-8"):
+        try:
+            text = raw.decode(encoding)
+            if "\x00" not in text:
+                return text
         except UnicodeDecodeError:
             continue
-    return raw.decode("utf-8", errors="replace")
+
+    if b"\x00" in raw:
+        for enc in ("utf-16", "utf-16-le", "utf-16-be"):
+            try:
+                text = raw.decode(enc)
+                if "\x00" not in text:
+                    return text
+            except UnicodeDecodeError:
+                pass
+        raise UnicodeDecodeError("utf-8", raw, 0, 1, "File contains null bytes / invalid encoding")
+
+    try:
+        text = raw.decode("cp1252")
+        if "\x00" not in text:
+            return text
+    except UnicodeDecodeError:
+        pass
+
+    raise UnicodeDecodeError("utf-8", raw, 0, 1, "Unable to decode text with supported encodings")
 
 
-def _dialect(text: str) -> csv.Dialect:
+class SemicolonDialect(csv.excel):
+    delimiter = ";"
+
+
+def _dialect(text: str) -> csv.Dialect | type[csv.Dialect]:
     """Sniff CSV delimiter (comma, semicolon, tab, pipe) or fall back to Excel defaults."""
     sample = text[:8192]
     try:
         return csv.Sniffer().sniff(sample, delimiters=",;\t|")
     except csv.Error:
+        if sample.count(";") > sample.count(","):
+            return SemicolonDialect
         return csv.excel
 
 
@@ -78,8 +161,20 @@ def _clean_key(value: str) -> str:
 
 def _rows(text: str) -> list[list[str]]:
     """Parse CSV text into stripped non-empty rows using detected dialect."""
-    reader = csv.reader(io.StringIO(text), dialect=_dialect(text))
-    return [[cell.strip() for cell in row] for row in reader if any(cell.strip() for cell in row)]
+    try:
+        reader = csv.reader(io.StringIO(text), dialect=_dialect(text))
+        return [[cell.strip() for cell in row] for row in reader if any(cell.strip() for cell in row)]
+    except csv.Error:
+        rows = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            delim = ";" if ";" in line and line.count(";") >= line.count(",") else ","
+            cells = [cell.strip().strip('"').strip() for cell in line.split(delim)]
+            if any(cells):
+                rows.append(cells)
+        return rows
 
 
 def _looks_tabular(rows: list[list[str]]) -> bool:
@@ -88,14 +183,16 @@ def _looks_tabular(rows: list[list[str]]) -> bool:
         return False
     width = len(rows[0])
     consistent = sum(1 for row in rows[1:10] if len(row) == width)
-    header = rows[0]
+    header = [_clean_key(cell).lower() for cell in rows[0]]
     textual_headers = sum(1 for cell in header if cell and not _to_float(cell))
-    return consistent >= max(1, min(len(rows) - 1, 3)) and textual_headers >= max(1, width // 2)
+    known_aim_keys = set(SCENARIO_KEYS + TIME_KEYS + SCORE_KEYS + ACCURACY_KEYS + DURATION_KEYS + SHOT_KEYS + HIT_KEYS)
+    has_aim_headers = any(h in known_aim_keys for h in header)
+    return consistent >= max(1, min(len(rows) - 1, 3)) and textual_headers >= max(1, width // 2) and has_aim_headers
 
 
 def _looks_key_value(rows: list[list[str]]) -> bool:
     """Check if rows represent a key-value export (e.g. 'Scenario:,Tile Frenzy')."""
-    known = set(SCENARIO_KEYS + TIME_KEYS + SCORE_KEYS + ACCURACY_KEYS + DURATION_KEYS)
+    known = set(SCENARIO_KEYS + TIME_KEYS + SCORE_KEYS + ACCURACY_KEYS + DURATION_KEYS + SHOT_KEYS + HIT_KEYS)
     first_cells = [_clean_key(row[0]).lower() for row in rows if row]
     known_matches = sum(1 for cell in first_cells if cell in known)
     colon_labels = sum(1 for row in rows if row and row[0].strip().endswith(":"))
@@ -104,6 +201,7 @@ def _looks_key_value(rows: list[list[str]]) -> bool:
         len(rows) >= 2
         and colon_labels >= max(2, len(rows) // 2)
         and two_column_rows >= max(2, len(rows) // 2)
+        and known_matches >= 1
     )
 
 
@@ -174,15 +272,29 @@ def _parse_kovaaks_stats(rows: list[list[str]]) -> dict[str, str]:
 
 def parse_csv(path: Path) -> tuple[str, list[dict[str, str]]]:
     """Parse a CSV file into a format mode ('kovaaks_stats', 'table', or 'key_value') and a list of records."""
-    rows = _rows(_read_text(path))
+    try:
+        text = _read_text(path)
+    except (UnicodeDecodeError, ValueError):
+        return "decode-error", []
+    try:
+        rows = _rows(text)
+    except csv.Error:
+        return "incomplete", []
     if not rows:
         return "empty", []
 
-    # 1. Check for native multi-section Kovaak's export with kill and weapon tables
-    if _looks_kovaaks_stats(rows):
-        return "kovaaks_stats", [_parse_kovaaks_stats(rows)]
+    # Check for native multi-section Kovaak's export with kill and weapon tables
+    has_kill_table = any(row and _clean_key(row[0]).lower() == "kill #" for row in rows)
+    if has_kill_table:
+        labels = {_clean_key(row[0]).lower() for row in rows if row}
+        if not ("scenario" in labels and "score" in labels and "weapon" in labels):
+            return "incomplete", []
+        record = _parse_kovaaks_stats(rows)
+        if _to_float(_lookup(record, SCORE_KEYS)) is None:
+            return "incomplete", []
+        return "kovaaks_stats", [record]
 
-    # 2. Check for standard tabular CSV (e.g. headers on row 0, data on rows 1..N)
+    # Check for standard tabular CSV (e.g. headers on row 0, data on rows 1..N)
     if not _looks_key_value(rows) and _looks_tabular(rows):
         headers = []
         seen: dict[str, int] = {}
@@ -194,20 +306,29 @@ def parse_csv(path: Path) -> tuple[str, list[dict[str, str]]]:
         for row in rows[1:]:
             padded = row + [""] * (len(headers) - len(row))
             records.append({headers[i]: padded[i] for i in range(len(headers))})
+        has_score = any(_to_float(_lookup(r, SCORE_KEYS)) is not None for r in records)
+        if not has_score:
+            return "incomplete", []
         return "table", records
 
-    # 3. Fall back to key-value structure where col 0 is key, rest is value
-    record: dict[str, str] = {}
-    repeats: dict[str, int] = {}
-    for index, row in enumerate(rows, start=1):
-        key = _clean_key(row[0]) if row else f"row_{index}"
-        value = ", ".join(cell for cell in row[1:] if cell) if len(row) > 1 else ""
-        if not key:
-            key = f"row_{index}"
-        repeats[key] = repeats.get(key, 0) + 1
-        final_key = key if repeats[key] == 1 else f"{key}_{repeats[key]}"
-        record[final_key] = value
-    return "key_value", [record]
+    # Check for key-value structure
+    if _looks_key_value(rows):
+        record: dict[str, str] = {}
+        repeats: dict[str, int] = {}
+        for index, row in enumerate(rows, start=1):
+            key = _clean_key(row[0]) if row else f"row_{index}"
+            value = ", ".join(cell for cell in row[1:] if cell) if len(row) > 1 else ""
+            if not key:
+                key = f"row_{index}"
+            repeats[key] = repeats.get(key, 0) + 1
+            final_key = key if repeats[key] == 1 else f"{key}_{repeats[key]}"
+            record[final_key] = value
+        score_val = _to_float(_lookup(record, SCORE_KEYS))
+        if score_val is None:
+            return "incomplete", []
+        return "key_value", [record]
+
+    return "unrecognized-format", []
 
 
 def _lookup(record: dict[str, str], aliases: Iterable[str]) -> str | None:
@@ -227,7 +348,12 @@ def _to_float(value: str | None) -> float | None:
     cleaned = value.strip().replace("%", "").replace(" ", "")
     if not cleaned:
         return None
-    if cleaned.count(",") == 1 and "." not in cleaned:
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif cleaned.count(",") == 1:
         cleaned = cleaned.replace(",", ".")
     else:
         cleaned = cleaned.replace(",", "")
@@ -401,6 +527,25 @@ def _import_file(database: Database, path: str | Path) -> ImportResult:
     database.upsert_source(str(csv_path), stat.st_size, stat.st_mtime_ns, "importing")
     try:
         mode, records = parse_csv(csv_path)
+        if mode in ("empty", "incomplete", "unrecognized-format", "decode-error") or not records:
+            reason = mode if mode in ("empty", "incomplete", "unrecognized-format", "decode-error") else "unrecognized-format"
+            if reason == "incomplete":
+                database.upsert_source(str(csv_path), stat.st_size, stat.st_mtime_ns, "incomplete", "incomplete")
+            elif reason == "empty":
+                database.finish_source(str(csv_path), stat.st_size, stat.st_mtime_ns, 0)
+            else:
+                database.upsert_source(str(csv_path), stat.st_size, stat.st_mtime_ns, "skipped", reason)
+            return ImportResult(
+                path=str(csv_path),
+                mode=mode,
+                rows_seen=0,
+                inserted=0,
+                updated=0,
+                unchanged=0,
+                removed=0,
+                reason=reason,
+            )
+
         counts = {"inserted": 0, "updated": 0, "unchanged": 0}
         occurrences = {}
         content_occurrences = {}
@@ -439,13 +584,81 @@ def discover_csv_files(path: str | Path) -> list[Path]:
     return sorted(candidate.rglob("*.csv"), key=lambda item: item.stat().st_mtime, reverse=True)
 
 
-def import_path(database: Database, path: str | Path, force: bool = False) -> list[ImportResult]:
-    """Scan and import all CSV files at the specified path, skipping files with unchanged signatures."""
-    results = []
-    for csv_path in discover_csv_files(path):
-        stat = csv_path.stat()
-        signature = database.source_signature(str(csv_path.resolve()))
-        if not force and signature == (stat.st_size, stat.st_mtime_ns):
-            continue
-        results.append(import_file(database, csv_path))
-    return results
+def import_path(
+    database: Database,
+    path: str | Path,
+    force: bool = False,
+    now: float | None = None,
+) -> ImportReport:
+    """Scan and import all CSV files at the specified path, skipping files with unchanged signatures.
+
+    Treats files modified within the last 2 seconds as possibly still being written,
+    skipping them with reason 'incomplete' so subsequent scans can retry.
+    Never raises an unhandled exception.
+    """
+    results: list[ImportResult] = []
+    current_time = now if now is not None else time.time()
+
+    try:
+        csv_files = discover_csv_files(path)
+    except Exception as exc:
+        logger.warning("Failed to discover CSV files at %s: %s", path, exc)
+        return ImportReport([])
+
+    for csv_path in csv_files:
+        try:
+            stat = csv_path.stat()
+            resolved = str(csv_path.resolve())
+            signature = database.source_signature(resolved)
+
+            if not force and signature == (stat.st_size, stat.st_mtime_ns):
+                results.append(
+                    ImportResult(
+                        path=resolved,
+                        mode="skip",
+                        rows_seen=0,
+                        inserted=0,
+                        updated=0,
+                        unchanged=0,
+                        removed=0,
+                        reason="duplicate",
+                    )
+                )
+                continue
+
+            if not force and (current_time - stat.st_mtime < 2.0):
+                results.append(
+                    ImportResult(
+                        path=resolved,
+                        mode="skip",
+                        rows_seen=0,
+                        inserted=0,
+                        updated=0,
+                        unchanged=0,
+                        removed=0,
+                        reason="incomplete",
+                    )
+                )
+                continue
+
+            results.append(import_file(database, csv_path))
+        except Exception as exc:
+            resolved = str(csv_path.resolve()) if hasattr(csv_path, "resolve") else str(csv_path)
+            reason = "decode-error" if isinstance(exc, UnicodeDecodeError) else f"error: {exc}"
+            results.append(
+                ImportResult(
+                    path=resolved,
+                    mode="error",
+                    rows_seen=0,
+                    inserted=0,
+                    updated=0,
+                    unchanged=0,
+                    removed=0,
+                    reason=reason,
+                    outcome="error",
+                )
+            )
+
+    report = ImportReport(results)
+    logger.info("Imported path %s: %s", path, report.summary())
+    return report

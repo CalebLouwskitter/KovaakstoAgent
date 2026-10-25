@@ -85,6 +85,8 @@ class CsvWatcher:
                     continue
 
                 result = import_file(self.database, path).to_dict()
+                if result.get("reason") == "incomplete":
+                    continue
                 imported.append(result)
                 self.last_import = result
                 self.last_error = None

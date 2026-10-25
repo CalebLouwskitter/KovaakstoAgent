@@ -1,0 +1,19 @@
+Kill #,Timestamp,Bot,Weapon,TTK,Shots,Hits,Accuracy,Damage Done,Damage Possible,Efficiency,Cheated,OverShots
+1,00:00:01,Target1,Blaster,0.5,2,1,50.0,50.0,100.0,50.0,0,0
+
+Weapon,Shots,Hits,Damage Done,Damage Possible,,Sens Scale,Horiz Sens,Vert Sens,FOV,Hide Gun,Crosshair,Crosshair Scale,Crosshair Color,ADS Sens,ADS Zoom Scale,Avg Target Scale,Avg Time Dilation
+Blaster,10,8,80.0,100.0,,cm/360,30.0,30.0,103.0,0,cross,1.0,white,1.0,1.0,1.0,1.0
+
+Hit Count:,8
+Miss Count:,2
+Score:,80.0
+Scenario:,Synthetic Normal
+Challenge Start:,12:00:00.000
+Sens Scale:,cm/360
+Horiz Sens:,30.0
+DPI:,800
+FOV:,103.0
+FOVScale:,Quake/Source
+Resolution:,1920x1080
+Avg FPS:,240.0
+Date:,2026-08-30 12:00:00
