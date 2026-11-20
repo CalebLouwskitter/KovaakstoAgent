@@ -2,9 +2,9 @@
 
 [![Tests](https://github.com/CalebLouwskitter/KovaakstoAgent/actions/workflows/tests.yml/badge.svg)](https://github.com/CalebLouwskitter/KovaakstoAgent/actions/workflows/tests.yml)
 
-A local training dashboard that turns Kovaak's CSV exports into progress you can review and coaching you can continue across sessions, roles, and model providers.
+A local-first adaptive aim coaching platform that turns KovaaK's CSV exports into deterministic skill intelligence, fatigue-aware training routines, closed-loop progress evaluation, and evidence-grounded AI coaching across providers.
 
-**Status: 0.2.0 preview · MIT licensed.** Now a Windows desktop app with an installer, tray icon and automatic stats-folder detection. Live coaching remains unverified because no API credentials were available. See the [0.2.0 release notes](docs/release-notes-0.2.0.md), the [0.1.0 validation report](docs/release-readiness.md), and the [source file list](docs/release-files.txt).
+**Status: 0.3.0 · MIT licensed.** Adds deterministic performance intelligence across 9 skill categories, weakness diagnostics with explicit epistemic guardrails, a 7-mode adaptive training planner, closed-loop post-session evaluation, interactive SVG skill radar & scenario trend charts, custom JSON benchmark tracking, natural-language history Q&A, one-click sample history loading, and optional local OpenAI-compatible model support. Live cloud provider calls remain unverified when no API keys are connected; local offline coaching works with zero API key. See the [0.2.0 release notes](docs/release-notes-0.2.0.md), the [0.1.0 validation report](docs/release-readiness.md), and the [source file list](docs/release-files.txt).
 
 ![Progress tab with a weekly activity chart and scenario comparisons](docs/screenshots/progress.jpg)
 
@@ -12,15 +12,17 @@ A local training dashboard that turns Kovaak's CSV exports into progress you can
 
 ## Your training workspace
 
-Five tabs keep everyday tasks separate. Connections, memory editing, role editing, and saved report readers open in dialogs. The interface uses bundled daisyUI components with orange accents, light and dark themes, and responsive layouts.
+Seven tabs organize analytics, planning, coaching, and history. Connections, scenario tag editing, hardware change logging, benchmark import, memory editing, role editing, and saved report readers open in dialogs. The interface uses bundled daisyUI components and vanilla SVG charts with orange accents, light and dark themes, and zero runtime build dependencies.
 
 | Tab | What you can do |
 | --- | --- |
-| **Progress** | Review a day, Monday-start week, month, or calendar year; compare scores within each scenario; see practice time, active days, and accuracy. Track practice streaks and personal bests set in the selected period with score improvements. |
-| **Latest session** | Inspect the latest imported run, recent exports, shot conversion, and settings when present in the CSV. |
-| **Coach** | Choose a period and role, then request advice using your retained history, saved memories, and previous reports. |
-| **Memory** | Add and edit goals, preferences, constraints, notes, and practice outcomes. Complete or archive memories, restore archived entries, and customize roles. |
-| **Reviews** | Reopen saved coaching and automatic annual statistical reviews without another model call. |
+| **Overview** | Answer the 5 core performance questions (improving at, bottlenecks, today's focus, measurable progress, next change); view strongest/lagging categories, period summaries, practice streaks, PBs, and edit multi-category scenario tags. |
+| **Skills** | Explore the interactive skill category radar chart, scenario score/accuracy trend chart (7d/30d/90d/All) with PB & hardware-change markers, normalized category breakdown, and personal/imported JSON benchmarks. |
+| **Today's Training** | Record readiness & fatigue check-ins (energy, focus, fatigue, eye strain, wrist discomfort with non-medical rest guardrails); generate routines across 7 modes (`10m Warm-Up`, `20m Focused`, `30m Balanced`, `45–60m Development`, `Benchmark`, `Recovery`, `CS2 Prep`); track live drill progress and evaluate outcomes. |
+| **AI Coach** | Generate deterministic offline coaching briefs or LLM-enhanced structured coaching with scenario/epistemic validation, inspect raw supporting evidence, compare prior advice against observed runs, and ask natural-language questions about your history. |
+| **History** | Inspect grouped training sessions, within-session warmup/late-drift progression, hardware/sensitivity change annotations with before/after impact, latest run shot conversion, and recent runs. |
+| **Memory** | Add, edit, complete, archive, restore, or permanently delete goals, preferences, constraints, hardware notes, fatigue notes, schedule availability, and practice outcomes; customize agent roles. |
+| **Reviews** | Reopen saved coaching reports and automatic annual statistical reviews without another model call, and export aggregated intelligence as JSON or CSV. |
 
 ## Quick start
 
@@ -61,9 +63,9 @@ To run the desktop window from source instead, install the extras with `python -
 
 ### Try the included sample
 
-In Connections, set the CSV path to `samples/demo-session.csv` when running from the project folder, or paste that file's absolute path. The installer puts a copy in its install folder, by default `%LOCALAPPDATA%\Programs\Kovaak Agent\samples\demo-session.csv`. Choose **Save & scan**.
+Click **Load Sample** in the top bar (or on the first-run onboarding card / Connections dialog) to immediately import the bundled 63-run multi-week historical sample (`samples/demo-history.csv`) and navigate to **2026-08-30**. The minimal 3-run fixture (`samples/demo-session.csv`) also remains available in `samples/`.
 
-The sample contains **three runs dated August 30, 2026**. In Progress, select **Day** and set **Date in period** to **2026-08-30**. Current-day or current-week views may be empty because the sample has fixed historical dates. The screenshots above use an additional synthetic dataset, so their totals differ from the three-row sample.
+For `.perf` files: if a scanned folder contains `.perf` files, import diagnostics report their count clearly; binary `.perf` parsing is intentionally omitted until verified format fixtures are available.
 
 ### Find your Kovaak's exports
 
@@ -120,6 +122,7 @@ In **Connections**, choose a provider, enter its API key, and choose a model ava
 | OpenAI | `gpt-5.4-mini` | Responses, `/v1/responses` |
 | OpenRouter | `~openai/gpt-latest` | Chat Completions, `/api/v1/chat/completions` |
 | Google Gemini | `gemini-3.7-flash` | Interactions, `/v1beta/interactions` |
+| Local (Ollama / LM Studio) | `llama3.2` | Loopback Chat Completions (`127.0.0.1` / `localhost` only) |
 
 These are editable code defaults, not a guarantee of account access or continuing model availability. Automated provider tests use mocked responses; paid requests and end-to-end coaching with all three providers were not verified in the release review.
 
@@ -183,7 +186,7 @@ Validation for **0.2.0 on October 21, 2026**: **57 automated tests passed**, add
 
 Earlier validation on **September 9, 2026** for 0.1.0: **37 automated tests passed**, including request-security regressions and backup restore. The same suite passed in a separate copy built only from the release file list, with Python site packages disabled. JavaScript syntax and whitespace checks passed. Browser checks verified all five tabs, sample import, memory saving and reload persistence, period selection, and backup download with the new protections enabled. Existing screenshots remain accurate because the UI did not change. Provider handoff tests use mocks; no API credentials were available for live calls. Coaching-quality evaluation and other operating systems remain unverified. Full evidence and publication scope are in the [release review](docs/release-readiness.md).
 
-The main modules are `app/importer.py` (CSV normalization), `database.py` (storage), `watcher.py` (capture), `memory.py` (history and coaching context), `model.py` (providers), `service.py` (coordination), `server.py` (local HTTP API), `paths.py` (data folder and migration), `steam.py` (stats-folder detection), and `desktop.py` (window, tray and start-with-Windows).
+The main modules are `app/importer.py` (CSV normalization), `database.py` (storage & unified `normalized_runs`), `taxonomy.py` (multi-category skill classification & verified catalog), `analytics.py` (statistical intelligence & weakness diagnostics), `benchmarks.py` (personal & imported JSON benchmarks), `planner.py` (7-mode fatigue-aware planner & session evaluator), `coaching.py` (multi-role brief orchestrator, grounding validator & Q&A), `exporter.py` (JSON/CSV export), `watcher.py` (capture), `memory.py` (history, readiness, hardware annotations & coaching context), `model.py` (cloud + loopback local providers), `service.py` (coordination), `server.py` (local HTTP API), `paths.py` (data folder and migration), `steam.py` (stats-folder detection), and `desktop.py` (window, tray and start-with-Windows).
 
 ## License and attribution
 

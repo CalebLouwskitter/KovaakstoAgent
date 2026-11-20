@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 
 class ModelError(RuntimeError):
@@ -322,6 +323,44 @@ class GeminiInteractionsClient:
         return output
 
 
+@dataclass
+class LocalOpenAICompatibleClient:
+    """Client for local loopback OpenAI-compatible runtimes (e.g., Ollama, LM Studio)."""
+    api_key: str = ""
+    model: str = "llama3.2"
+    endpoint: str = "http://127.0.0.1:11434/v1/chat/completions"
+    timeout_seconds: int = 60
+
+    def _validated_endpoint(self) -> str:
+        parsed = urlparse(self.endpoint.strip())
+        if parsed.scheme not in {"http", "https"} or (parsed.hostname or "").lower() not in {"127.0.0.1", "localhost"}:
+            raise ModelError("Local model endpoint must use http(s) on 127.0.0.1 or localhost.")
+        return self.endpoint.strip()
+
+    def respond(self, instructions: str, prompt: str) -> str:
+        endpoint = self._validated_endpoint()
+        headers = {"Content-Type": "application/json"}
+        if self.api_key.strip():
+            headers["Authorization"] = f"Bearer {self.api_key.strip()}"
+        payload = _post_json(
+            endpoint,
+            headers,
+            {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": prompt},
+                ],
+            },
+            self.timeout_seconds,
+            "Local",
+        )
+        output = extract_chat_text(payload)
+        if not output:
+            raise ModelError("Local model returned no text output.")
+        return output
+
+
 @dataclass(frozen=True)
 class ProviderDefinition:
     """Metadata and factory registration for a supported LLM provider."""
@@ -331,6 +370,7 @@ class ProviderDefinition:
     api_key_environment: str
     model_environment: str
     client_type: type = field(repr=False)
+    requires_api_key: bool = True
 
     def create_client(self, api_key: str, model: str) -> ModelClient:
         return self.client_type(api_key=api_key, model=model)
@@ -351,6 +391,15 @@ PROVIDERS = {
     ),
     "gemini": ProviderDefinition(
         "gemini", "Gemini", "gemini-3.7-flash", "GEMINI_API_KEY", "GEMINI_MODEL", GeminiInteractionsClient
+    ),
+    "local": ProviderDefinition(
+        "local",
+        "Local (Ollama / LM Studio)",
+        "llama3.2",
+        "LOCAL_MODEL_API_KEY",
+        "LOCAL_MODEL",
+        LocalOpenAICompatibleClient,
+        requires_api_key=False,
     ),
 }
 

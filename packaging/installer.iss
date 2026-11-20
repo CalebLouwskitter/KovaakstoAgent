@@ -42,7 +42,7 @@ Name: "startup"; Description: "&Start with Windows (opens in the tray, capturing
 
 [Files]
 Source: "..\dist\KovaakAgent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\samples\demo-session.csv"; DestDir: "{app}\samples"; Flags: ignoreversion
+Source: "..\samples\*"; DestDir: "{app}\samples"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
