@@ -189,6 +189,92 @@ class Database:
                 connection.execute("INSERT INTO settings(key,value) VALUES('history_migrated','1')")
             connection.execute("""INSERT OR IGNORE INTO history_versions(year,revision)
                 SELECT CAST(substr(observed_at,1,4) AS INTEGER),COUNT(*) FROM run_history GROUP BY substr(observed_at,1,4)""")
+            # v0.3.0 coaching intelligence, planning, hardware, and benchmark tables.
+            connection.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS scenario_tags (
+                    scenario TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'auto',
+                    confidence REAL NOT NULL DEFAULT 1.0,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY(scenario, category)
+                );
+
+                CREATE TABLE IF NOT EXISTS hardware_events (
+                    id TEXT PRIMARY KEY,
+                    observed_at TEXT NOT NULL,
+                    change_type TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    details_json TEXT NOT NULL DEFAULT '{}',
+                    source TEXT NOT NULL DEFAULT 'manual',
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS readiness_checkins (
+                    id TEXT PRIMARY KEY,
+                    check_date TEXT NOT NULL,
+                    energy INTEGER NOT NULL,
+                    focus INTEGER NOT NULL,
+                    fatigue INTEGER NOT NULL,
+                    eye_strain INTEGER NOT NULL,
+                    wrist_discomfort INTEGER NOT NULL,
+                    available_minutes INTEGER,
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS training_plans (
+                    id TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    plan_date TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    target_minutes INTEGER NOT NULL,
+                    objective TEXT NOT NULL,
+                    readiness_json TEXT NOT NULL DEFAULT '{}',
+                    diagnosis_ids_json TEXT NOT NULL DEFAULT '[]',
+                    items_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    evaluation_json TEXT,
+                    subjective_feedback TEXT NOT NULL DEFAULT '',
+                    outcome_verdict TEXT,
+                    completed_at TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS coaching_recommendations (
+                    id TEXT PRIMARY KEY,
+                    report_id INTEGER,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    period TEXT NOT NULL,
+                    anchor_date TEXT,
+                    role_id TEXT NOT NULL,
+                    structured_json TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    evaluation_json TEXT,
+                    effectiveness_score REAL,
+                    evaluated_at TEXT,
+                    FOREIGN KEY(report_id) REFERENCES reports(id) ON DELETE SET NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS custom_benchmarks (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    version TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'user',
+                    definitions_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS history_scenario_time_idx ON run_history(scenario, observed_at);
+                CREATE INDEX IF NOT EXISTS runs_score_idx ON runs(scenario, score);
+                CREATE INDEX IF NOT EXISTS plans_date_idx ON training_plans(plan_date DESC, created_at DESC);
+                CREATE INDEX IF NOT EXISTS checkins_date_idx ON readiness_checkins(check_date DESC, created_at DESC);
+                CREATE INDEX IF NOT EXISTS recs_created_idx ON coaching_recommendations(created_at DESC);
+                CREATE INDEX IF NOT EXISTS hardware_observed_idx ON hardware_events(observed_at DESC);
+                """
+            )
 
     @staticmethod
     def _retain_run(connection, run: dict[str, Any]) -> None:
@@ -507,4 +593,160 @@ class Database:
         """Return streaks and PBs set in a given period."""
         from .records import get_records
         return get_records(self, period=period, anchor=anchor)
+
+    @staticmethod
+    def _normalize_timestamp(value: Any) -> str:
+        """Normalize timestamp strings to 'YYYY-MM-DD HH:MM:SS' for uniform comparison."""
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if "T" in text:
+            text = text.replace("T", " ", 1)
+        return text[:19] if len(text) >= 19 else text
+
+    @staticmethod
+    def _to_opt_float(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return None
+        return num if num == num else None  # reject NaN
+
+    def normalized_runs(
+        self,
+        start: str | None = None,
+        end: str | None = None,
+        scenario: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return unified, chronologically ordered normalized runs from run_history (or runs fallback).
+
+        Never leaks local filesystem paths or event_keys so callers (charts, analytics, AI evidence)
+        share a single safe, normalized model.
+        """
+        start_norm = self._normalize_timestamp(start) if start else None
+        end_norm = self._normalize_timestamp(end) if end else None
+        scenario_filter = scenario.strip() if scenario else None
+
+        with self.connect() as connection:
+            has_history = connection.execute("SELECT 1 FROM run_history LIMIT 1").fetchone() is not None
+            clauses: list[str] = []
+            params: list[Any] = []
+
+            if has_history:
+                if start_norm:
+                    clauses.append("observed_at >= ?")
+                    params.append(start_norm)
+                if end_norm:
+                    clauses.append("observed_at < ?")
+                    params.append(end_norm)
+                if scenario_filter:
+                    clauses.append("scenario = ?")
+                    params.append(scenario_filter)
+                where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+                rows = connection.execute(
+                    f"SELECT event_key, observed_at, scenario, payload_json FROM run_history{where} ORDER BY observed_at ASC, event_key ASC",
+                    params,
+                ).fetchall()
+                results: list[dict[str, Any]] = []
+                for idx, row in enumerate(rows, start=1):
+                    payload = json.loads(row["payload_json"])
+                    item = self._clean_run_dict(payload, fallback_id=idx, observed_override=row["observed_at"])
+                    if item["scenario"] and item["score"] is not None:
+                        results.append(item)
+                return results
+
+            # Fallback for callers/tests inserting directly into `runs`.
+            if start_norm:
+                clauses.append("replace(observed_at, 'T', ' ') >= ?")
+                params.append(start_norm)
+            if end_norm:
+                clauses.append("replace(observed_at, 'T', ' ') < ?")
+                params.append(end_norm)
+            if scenario_filter:
+                clauses.append("scenario = ?")
+                params.append(scenario_filter)
+            where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+            rows = connection.execute(
+                f"""
+                SELECT id, observed_at, scenario, score, accuracy, duration_seconds,
+                       shots, hits, misses, damage_done, damage_possible, efficiency,
+                       weapon, sensitivity, sensitivity_scale, dpi, fov, fov_scale,
+                       avg_fps, resolution, game_version
+                FROM runs{where}
+                ORDER BY replace(observed_at, 'T', ' ') ASC, id ASC
+                """,
+                params,
+            ).fetchall()
+            results = []
+            for row in rows:
+                item = self._clean_run_dict(dict(row), fallback_id=row["id"])
+                if item["scenario"] and item["score"] is not None:
+                    results.append(item)
+            return results
+
+    def _clean_run_dict(
+        self,
+        raw: dict[str, Any],
+        *,
+        fallback_id: int,
+        observed_override: str | None = None,
+    ) -> dict[str, Any]:
+        observed = self._normalize_timestamp(observed_override or raw.get("observed_at"))
+        shots = self._to_opt_float(raw.get("shots"))
+        hits = self._to_opt_float(raw.get("hits"))
+        misses = self._to_opt_float(raw.get("misses"))
+        if misses is None and shots is not None and hits is not None:
+            misses = max(0.0, shots - hits)
+        accuracy = self._to_opt_float(raw.get("accuracy"))
+        if accuracy is None and shots and shots > 0 and hits is not None and 0 <= hits <= shots:
+            accuracy = hits / shots * 100.0
+        elif accuracy is not None and not (0.0 <= accuracy <= 100.0):
+            accuracy = None
+        return {
+            "id": raw.get("id") or fallback_id,
+            "observed_at": observed,
+            "date": observed[:10],
+            "scenario": str(raw.get("scenario") or "").strip(),
+            "score": self._to_opt_float(raw.get("score")),
+            "accuracy": accuracy,
+            "duration_seconds": self._to_opt_float(raw.get("duration_seconds")),
+            "shots": shots,
+            "hits": hits,
+            "misses": misses,
+            "damage_done": self._to_opt_float(raw.get("damage_done")),
+            "damage_possible": self._to_opt_float(raw.get("damage_possible")),
+            "efficiency": self._to_opt_float(raw.get("efficiency")),
+            "weapon": raw.get("weapon") or None,
+            "sensitivity": self._to_opt_float(raw.get("sensitivity")),
+            "sensitivity_scale": raw.get("sensitivity_scale") or None,
+            "dpi": self._to_opt_float(raw.get("dpi")),
+            "fov": self._to_opt_float(raw.get("fov")),
+            "fov_scale": raw.get("fov_scale") or None,
+            "avg_fps": self._to_opt_float(raw.get("avg_fps")),
+            "resolution": raw.get("resolution") or None,
+            "game_version": raw.get("game_version") or None,
+        }
+
+    def data_revision(self) -> str:
+        """Fast change-detection signature across retained history and coaching tables."""
+        with self.connect() as connection:
+            parts = []
+            for sql in (
+                "SELECT COUNT(*), COALESCE(MAX(captured_at), '') FROM run_history",
+                "SELECT COUNT(*), COALESCE(MAX(id), 0) FROM runs",
+                "SELECT COUNT(*), COALESCE(MAX(updated_at), '') FROM coaching_notes",
+                "SELECT COUNT(*), COALESCE(MAX(created_at), '') FROM training_plans",
+                "SELECT COUNT(*), COALESCE(MAX(created_at), '') FROM readiness_checkins",
+                "SELECT COUNT(*), COALESCE(MAX(updated_at), '') FROM scenario_tags",
+                "SELECT COUNT(*), COALESCE(MAX(created_at), '') FROM hardware_events",
+                "SELECT COUNT(*), COALESCE(MAX(id), 0) FROM reports",
+                "SELECT COUNT(*), COALESCE(MAX(created_at), '') FROM coaching_recommendations",
+                "SELECT COUNT(*), COALESCE(MAX(created_at), '') FROM custom_benchmarks",
+            ):
+                row = connection.execute(sql).fetchone()
+                parts.append(f"{row[0]}:{row[1]}")
+        return "|".join(parts)
+
 

@@ -65,19 +65,34 @@ class ImportResult:
 class ImportReport:
     """Aggregated import report containing individual file results and summary metrics."""
     results: list[ImportResult]
+    unsupported_perf_files: int = 0
 
     def summary(self) -> dict[str, Any]:
         """Aggregate counts per outcome and per reason."""
         outcomes: dict[str, int] = {}
         reasons: dict[str, int] = {}
+        inserted = 0
+        updated = 0
+        unchanged = 0
+        skipped_total = 0
         for res in self.results:
             outcomes[res.outcome] = outcomes.get(res.outcome, 0) + 1
             if res.reason:
                 reasons[res.reason] = reasons.get(res.reason, 0) + 1
+            inserted += res.inserted
+            updated += res.updated
+            unchanged += res.unchanged
+            if res.outcome == "skipped":
+                skipped_total += 1
         return {
             "total": len(self.results),
             "outcomes": outcomes,
             "reasons": reasons,
+            "inserted": inserted,
+            "updated": updated,
+            "unchanged": unchanged,
+            "skipped_total": skipped_total,
+            "unsupported_perf_files": self.unsupported_perf_files,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -249,6 +264,13 @@ def _parse_kovaaks_stats(rows: list[list[str]]) -> dict[str, str]:
             for key, value in primary.items():
                 if key != "Weapon" and value != "":
                     record[f"Weapon {key}"] = value
+            if len(weapon_rows) > 1:
+                for metric in ("Shots", "Hits", "Damage Done", "Damage Possible"):
+                    if not record.get(f"Weapon {metric}"):
+                        vals = [_to_float(item.get(metric)) for item in weapon_rows]
+                        nums = [v for v in vals if v is not None]
+                        if nums:
+                            record[f"Weapon {metric}"] = str(sum(nums))
             record["Weapon Rows"] = json.dumps(weapon_rows, ensure_ascii=False, separators=(",", ":"))
 
     # Preserve any per-kill detail without treating each kill as a separate run.
@@ -266,6 +288,11 @@ def _parse_kovaaks_stats(rows: list[list[str]]) -> dict[str, str]:
             kill_rows.append({headers[index]: values[index] for index in range(len(headers)) if headers[index]})
         if kill_rows:
             record["Kill Rows"] = json.dumps(kill_rows, ensure_ascii=False, separators=(",", ":"))
+            ttks = [_to_float(k.get("TTK")) for k in kill_rows]
+            valid_ttks = [t for t in ttks if t is not None and t >= 0]
+            record.setdefault("Kill Count", str(len(kill_rows)))
+            if valid_ttks:
+                record.setdefault("Avg TTK", f"{sum(valid_ttks) / len(valid_ttks):.4f}")
 
     return record
 
@@ -584,6 +611,25 @@ def discover_csv_files(path: str | Path) -> list[Path]:
     return sorted(candidate.rglob("*.csv"), key=lambda item: item.stat().st_mtime, reverse=True)
 
 
+def inspect_unsupported_files(path: str | Path) -> dict[str, Any]:
+    """Detect unsupported .perf telemetry files without attempting speculative binary parsing."""
+    candidate = Path(path).expanduser()
+    perf_count = 0
+    if candidate.is_file() and candidate.suffix.lower() == ".perf":
+        perf_count = 1
+    elif candidate.is_dir():
+        try:
+            perf_count = sum(1 for _ in candidate.rglob("*.perf"))
+        except OSError:
+            perf_count = 0
+    message = (
+        f"Detected {perf_count} .perf file(s); binary .perf telemetry parsing is not currently supported without verified format fixtures."
+        if perf_count
+        else ""
+    )
+    return {"perf_files": perf_count, "message": message}
+
+
 def import_path(
     database: Database,
     path: str | Path,
@@ -659,6 +705,7 @@ def import_path(
                 )
             )
 
-    report = ImportReport(results)
+    unsupported = inspect_unsupported_files(path)
+    report = ImportReport(results, unsupported_perf_files=unsupported["perf_files"])
     logger.info("Imported path %s: %s", path, report.summary())
     return report

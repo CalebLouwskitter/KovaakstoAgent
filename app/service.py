@@ -11,17 +11,23 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
 from . import __version__
+from .analytics import PerformanceAnalytics
+from .benchmarks import BenchmarkManager
+from .coaching import CoachingEngine
 from .database import Database
-from .importer import import_path
-from .model import PROVIDERS, create_model_client, get_provider
-from .watcher import CsvWatcher
+from .importer import ImportReport, import_path
 from .memory import CoachingMemory
-from .paths import DATABASE_NAME
+from .model import PROVIDERS, create_model_client, get_provider
+from .paths import DATABASE_NAME, resource_root
+from .planner import TrainingPlanner
 from .steam import find_stats_folders
+from .taxonomy import TaxonomyManager
+from .watcher import CsvWatcher
 
 
 DEFAULT_PROVIDER = "openai"
@@ -36,6 +42,11 @@ class AppService:
         self.data_dir = Path(data_dir).resolve() if data_dir else self.root / "data"
         self.database = Database(self.data_dir / DATABASE_NAME)
         self.memory = CoachingMemory(self.database)
+        self.taxonomy = TaxonomyManager(self.database)
+        self.analytics = PerformanceAnalytics(self.database, self.taxonomy)
+        self.planner = TrainingPlanner(self.database, self.analytics, self.taxonomy, self.memory)
+        self.coaching = CoachingEngine(self.database, self.analytics, self.planner, self.taxonomy, self.memory)
+        self.benchmarks = BenchmarkManager(self.database, self.analytics)
         # Store API keys in process memory only; seeded from environment variables if present
         self.session_api_keys = {
             provider_id: os.environ.get(definition.api_key_environment, "")
@@ -80,7 +91,13 @@ class AppService:
         self.watcher.stop()
         self.memory.stop()
 
-    def update_settings(self, watch_path: str, model: str, provider: str | None = None) -> dict[str, Any]:
+    def update_settings(
+        self,
+        watch_path: str,
+        model: str,
+        provider: str | None = None,
+        local_endpoint: str | None = None,
+    ) -> dict[str, Any]:
         """Update watch path, provider choice, and model selection in database and return status."""
         clean_path = watch_path.strip().strip('"')
         if clean_path:
@@ -94,6 +111,8 @@ class AppService:
         self.database.set_setting("watch_path", clean_path)
         self.database.set_setting("model_provider", definition.id)
         self.database.set_setting(f"model_{definition.id}", clean_model)
+        if local_endpoint is not None and local_endpoint.strip():
+            self.database.set_setting("model_local_endpoint", local_endpoint.strip())
         return self.status()
 
     def autodetect_watch_path(self, finder: Callable[[], list[Path]] = find_stats_folders) -> str | None:
@@ -127,15 +146,62 @@ class AppService:
             return "environment"
         return "session" if api_key else "none"
 
-    def _client(self):
+    def _client(self, provider: str | None = None, model: str | None = None):
         """Create a client instance for the active provider with current session key and model."""
-        return create_model_client(self.provider, self.session_api_key, self.model)
+        prov = provider or self.provider
+        mod = model or self.model
+        client = create_model_client(prov, self.session_api_keys[prov], mod)
+        if prov == "local" and hasattr(client, "endpoint"):
+            saved_ep = self.database.get_setting("model_local_endpoint", "")
+            if saved_ep:
+                client.endpoint = saved_ep
+        return client
+
+    def import_with_summary(self, force: bool = False) -> dict[str, Any]:
+        """Trigger an immediate scan and import, returning both item results and report diagnostics."""
+        if not self.watch_path:
+            raise ValueError("Set a CSV file or folder first.")
+        report: ImportReport = import_path(self.database, self.watch_path, force=force)
+        return {
+            "imports": [result.to_dict() for result in report],
+            "report_summary": report.summary(),
+        }
 
     def import_now(self, force: bool = False) -> list[dict[str, Any]]:
         """Trigger an immediate scan and import of the configured watch path."""
-        if not self.watch_path:
-            raise ValueError("Set a CSV file or folder first.")
-        return [result.to_dict() for result in import_path(self.database, self.watch_path, force=force)]
+        return self.import_with_summary(force=force)["imports"]
+
+    def _sample_file_path(self) -> Path | None:
+        candidates = [
+            self.root / "samples" / "demo-history.csv",
+            resource_root() / "samples" / "demo-history.csv",
+            Path(sys.executable).parent / "samples" / "demo-history.csv",
+            self.root / "samples" / "demo-session.csv",
+            resource_root() / "samples" / "demo-session.csv",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return None
+
+    def load_sample(self) -> dict[str, Any]:
+        """Import the bundled historical sample CSV and return its target date for navigation."""
+        sample = self._sample_file_path()
+        if sample is None:
+            raise FileNotFoundError("Bundled sample file was not found.")
+        report = import_path(self.database, sample, force=True)
+        runs = self.database.normalized_runs()
+        latest_date = runs[-1]["date"] if runs else "2026-08-30"
+        first_date = runs[0]["date"] if runs else latest_date
+        return {
+            "sample_path": str(sample.name),
+            "imports": [result.to_dict() for result in report],
+            "report_summary": report.summary(),
+            "runs_imported": sum(r.inserted + r.updated for r in report),
+            "sample_date": "2026-08-30" if "demo-history" in sample.name or "demo-session" in sample.name else latest_date,
+            "date_range": {"first": first_date, "latest": latest_date},
+            "summary": self.database.summary(7),
+        }
 
     def status(self) -> dict[str, Any]:
         """Aggregate current application status: watch path, providers, watcher health, and 7-day summary."""
@@ -146,27 +212,45 @@ class AppService:
             fallback = os.environ.get(definition.model_environment, definition.default_model)
             if provider_id == "openai":
                 fallback = self.database.get_setting("model", fallback)
+            connected = bool(self.session_api_keys[provider_id]) if definition.requires_api_key else True
             provider_status.append(
                 {
                     "id": provider_id,
                     "label": definition.label,
                     "model": self.database.get_setting(f"model_{provider_id}", fallback),
                     "default_model": definition.default_model,
-                    "api_key_connected": bool(self.session_api_keys[provider_id]),
-                    "api_key_source": self._key_source(provider_id),
+                    "requires_api_key": definition.requires_api_key,
+                    "api_key_connected": connected,
+                    "api_key_source": "local" if not definition.requires_api_key else self._key_source(provider_id),
                 }
             )
+        active_def = get_provider(self.provider)
+        active_connected = bool(self.session_api_key) if active_def.requires_api_key else True
+        with self.database.connect() as conn:
+            row = conn.execute("SELECT COUNT(*) AS cnt, MAX(observed_at) AS latest FROM run_history").fetchone()
+            lifetime_runs = int(row["cnt"] or 0)
+            latest_run_date = str(row["latest"])[:10] if row["latest"] else None
+            if lifetime_runs == 0:
+                r_row = conn.execute("SELECT COUNT(*) AS cnt, MAX(observed_at) AS latest FROM runs").fetchone()
+                lifetime_runs = int(r_row["cnt"] or 0)
+                latest_run_date = str(r_row["latest"])[:10] if r_row["latest"] else None
         return {
             "model_provider_api_version": MODEL_PROVIDER_API_VERSION,
             "version": __version__,
             "data_dir": str(self.data_dir),
+            "data_revision": self.database.data_revision(),
+            "lifetime_runs": lifetime_runs,
+            "latest_run_date": latest_run_date,
+            "first_run": lifetime_runs == 0,
+            "has_sample": self._sample_file_path() is not None,
             "watch_path": watch_path,
             "watch_path_autodetected": self.database.get_setting("watch_path_autodetected") == "true",
             "watch_path_exists": bool(candidate and candidate.exists()),
             "provider": self.provider,
             "model": self.model,
-            "api_key_connected": bool(self.session_api_key),
-            "api_key_source": self._key_source(self.provider),
+            "local_endpoint": self.database.get_setting("model_local_endpoint", "http://127.0.0.1:11434/v1/chat/completions"),
+            "api_key_connected": active_connected,
+            "api_key_source": "local" if not active_def.requires_api_key else self._key_source(self.provider),
             "providers": provider_status,
             "watcher_running": self.watcher.running,
             "watcher_error": self.watcher.last_error,
@@ -234,3 +318,47 @@ at the next review. Do not infer outcomes from the passage of time alone.
     def records(self, period: str = "week", date: str | None = None) -> dict[str, Any]:
         """Return practice streaks and personal bests set in the specified period."""
         return self.database.records(period=period, anchor=date)
+
+    def generate_coaching_brief(
+        self,
+        *,
+        period: str = "weekly",
+        anchor: str | None = None,
+        role_id: str = "coach",
+        use_llm: bool = False,
+        fallback_on_error: bool = True,
+    ) -> dict[str, Any]:
+        """Generate an evidence-grounded structured coaching brief (offline or LLM-enhanced)."""
+        provider, model = self.provider, self.model
+        factory = (lambda: self._client(provider, model)) if use_llm else None
+        return self.coaching.generate_brief(
+            period=period,
+            anchor=anchor,
+            role_id=role_id,
+            use_llm=use_llm,
+            client_factory=factory,
+            provider_name=provider,
+            model_name=model,
+            fallback_on_error=fallback_on_error,
+            save=True,
+        )
+
+    def ask_coach(
+        self,
+        question: str,
+        *,
+        anchor: str | None = None,
+        use_llm: bool = False,
+    ) -> dict[str, Any]:
+        """Answer a natural-language question grounded in the player's retained training data."""
+        provider, model = self.provider, self.model
+        active_def = get_provider(provider)
+        has_creds = bool(self.session_api_keys[provider]) if active_def.requires_api_key else True
+        should_call_llm = bool(use_llm and has_creds)
+        factory = (lambda: self._client(provider, model)) if should_call_llm else None
+        return self.coaching.ask(
+            question,
+            anchor=anchor,
+            use_llm=should_call_llm,
+            client_factory=factory,
+        )

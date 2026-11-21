@@ -28,7 +28,7 @@ version_file.write_text(f"""VSVersionInfo(
 a = Analysis(
     [str(ROOT / "packaging" / "launcher.py")],
     pathex=[str(ROOT)],
-    datas=[(str(ROOT / "web"), "web")],
+    datas=[(str(ROOT / "web"), "web"), (str(ROOT / "samples"), "samples")],
     hiddenimports=["pystray._win32"],
     excludes=["tkinter"],
     # pystray is LGPL-3.0: ship it as plain .py files users can replace, not inside the archive.

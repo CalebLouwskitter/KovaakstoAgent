@@ -42,6 +42,9 @@ def period_bounds(period: str, anchor: str | None = None):
     return start.isoformat(), end.isoformat(), previous.isoformat()
 
 
+NOTE_KINDS = ("goal", "preference", "constraint", "note", "outcome", "hardware", "fatigue", "schedule")
+
+
 class CoachingMemory:
     def __init__(self, database):
         self.database = database
@@ -102,7 +105,7 @@ class CoachingMemory:
         status = str(payload.get("status", "active"))
         body = str(payload.get("body", "")).strip()
         scenario = str(payload.get("scenario", "")).strip()
-        if kind not in ("goal", "preference", "constraint", "note", "outcome") or status not in ("active", "completed", "archived"):
+        if kind not in NOTE_KINDS or status not in ("active", "completed", "archived"):
             raise ValueError("Invalid memory type or status.")
         if not body or len(body) > 2000 or len(scenario) > 200:
             raise ValueError("Write a memory of 1–2,000 characters and an optional scenario of up to 200 characters.")
@@ -113,6 +116,152 @@ class CoachingMemory:
                 scenario=excluded.scenario,status=excluded.status,updated_at=CURRENT_TIMESTAMP""",
                 (note_id, kind, body, scenario, status))
         return {"notes": self.notes()}
+
+    def delete_note(self, note_id: str) -> dict:
+        """Permanently delete a player coaching memory by ID."""
+        clean_id = str(note_id or "").strip()
+        if not clean_id:
+            raise ValueError("Specify a memory id to delete.")
+        with self.database.connect() as connection:
+            cursor = connection.execute("DELETE FROM coaching_notes WHERE id = ?", (clean_id,))
+            if cursor.rowcount == 0:
+                raise ValueError("Memory not found.")
+        return {"notes": self.notes()}
+
+    def save_readiness_checkin(self, payload: dict) -> dict:
+        """Record a self-reported readiness, fatigue, eye-strain, and wrist-discomfort check-in."""
+        def rating(name: str, default: int) -> int:
+            raw = payload.get(name, default)
+            try:
+                val = int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be an integer from 1 to 5.") from exc
+            if not 1 <= val <= 5:
+                raise ValueError(f"{name} must be between 1 and 5.")
+            return val
+
+        check_date_raw = str(payload.get("check_date") or date.today().isoformat()).strip()
+        try:
+            check_date = date.fromisoformat(check_date_raw[:10]).isoformat()
+        except ValueError as exc:
+            raise ValueError("check_date must be an ISO date (YYYY-MM-DD).") from exc
+
+        energy = rating("energy", 3)
+        focus = rating("focus", 3)
+        fatigue = rating("fatigue", 2)
+        eye_strain = rating("eye_strain", 1)
+        wrist_discomfort = rating("wrist_discomfort", 1)
+        avail_raw = payload.get("available_minutes")
+        available_minutes = None
+        if avail_raw not in (None, ""):
+            try:
+                available_minutes = int(avail_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("available_minutes must be an integer.") from exc
+            if not 5 <= available_minutes <= 240:
+                raise ValueError("available_minutes must be between 5 and 240.")
+        notes = str(payload.get("notes") or "").strip()
+        if len(notes) > 500:
+            raise ValueError("Check-in notes must be at most 500 characters.")
+
+        checkin_id = str(payload.get("id") or uuid.uuid4().hex)
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO readiness_checkins(
+                    id, check_date, energy, focus, fatigue, eye_strain, wrist_discomfort, available_minutes, notes
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    check_date=excluded.check_date, energy=excluded.energy, focus=excluded.focus,
+                    fatigue=excluded.fatigue, eye_strain=excluded.eye_strain,
+                    wrist_discomfort=excluded.wrist_discomfort, available_minutes=excluded.available_minutes,
+                    notes=excluded.notes
+                """,
+                (checkin_id, check_date, energy, focus, fatigue, eye_strain, wrist_discomfort, available_minutes, notes),
+            )
+            row = connection.execute("SELECT * FROM readiness_checkins WHERE id = ?", (checkin_id,)).fetchone()
+        return dict(row)
+
+    def list_readiness_checkins(self, limit: int = 30) -> list[dict]:
+        limit = max(1, min(int(limit), 200))
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM readiness_checkins ORDER BY check_date DESC, created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def latest_readiness(self, on_date: str | None = None) -> dict | None:
+        with self.database.connect() as connection:
+            if on_date:
+                row = connection.execute(
+                    "SELECT * FROM readiness_checkins WHERE check_date <= ? ORDER BY check_date DESC, created_at DESC LIMIT 1",
+                    (on_date[:10],),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT * FROM readiness_checkins ORDER BY check_date DESC, created_at DESC LIMIT 1"
+                ).fetchone()
+        return dict(row) if row else None
+
+    def save_hardware_event(self, payload: dict) -> dict:
+        """Record a manual hardware, sensitivity, mouse, mousepad, or display change annotation."""
+        observed_raw = str(payload.get("observed_at") or datetime.now().isoformat(sep=" ", timespec="seconds")).strip()
+        observed_at = observed_raw.replace("T", " ", 1)[:19]
+        try:
+            datetime.fromisoformat(observed_at)
+        except ValueError as exc:
+            raise ValueError("observed_at must be a valid ISO date or datetime.") from exc
+        change_type = str(payload.get("change_type") or "setup").strip().lower()
+        if change_type not in ("sensitivity", "dpi", "fov", "resolution", "mouse", "mousepad", "skates", "monitor", "setup"):
+            raise ValueError("Invalid hardware change_type.")
+        summary = str(payload.get("summary") or "").strip()
+        if not summary or len(summary) > 200:
+            raise ValueError("Provide a hardware change summary (1-200 characters).")
+        note = str(payload.get("note") or "").strip()
+        if len(note) > 1000:
+            raise ValueError("Hardware note must be at most 1000 characters.")
+        details = payload.get("details") or {}
+        if not isinstance(details, dict):
+            details = {}
+        event_id = str(payload.get("id") or uuid.uuid4().hex)
+        with self.database.connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO hardware_events(id, observed_at, change_type, summary, details_json, source, note)
+                VALUES(?, ?, ?, ?, ?, 'manual', ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    observed_at=excluded.observed_at, change_type=excluded.change_type,
+                    summary=excluded.summary, details_json=excluded.details_json, note=excluded.note
+                """,
+                (event_id, observed_at, change_type, summary, json.dumps(details, ensure_ascii=False), note),
+            )
+            row = connection.execute("SELECT * FROM hardware_events WHERE id = ?", (event_id,)).fetchone()
+        item = dict(row)
+        item["details"] = json.loads(item.pop("details_json"))
+        return item
+
+    def list_hardware_events(self) -> list[dict]:
+        with self.database.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM hardware_events ORDER BY observed_at DESC, created_at DESC"
+            ).fetchall()
+        results = []
+        for row in rows:
+            item = dict(row)
+            item["details"] = json.loads(item.pop("details_json"))
+            results.append(item)
+        return results
+
+    def delete_hardware_event(self, event_id: str) -> list[dict]:
+        clean_id = str(event_id or "").strip()
+        if not clean_id:
+            raise ValueError("Specify a hardware event id to delete.")
+        with self.database.connect() as connection:
+            cursor = connection.execute("DELETE FROM hardware_events WHERE id = ?", (clean_id,))
+            if cursor.rowcount == 0:
+                raise ValueError("Hardware event not found.")
+        return self.list_hardware_events()
 
     def _aggregate(self, connection, start, end, group=""):
         # Only paired shot/hit records contribute to weighted accuracy.

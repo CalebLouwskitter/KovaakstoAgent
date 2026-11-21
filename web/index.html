@@ -23,11 +23,13 @@
         <span class="brand-mark" aria-hidden="true">K</span>
         <span>
           <strong>Kovaak Agent</strong>
-          <small>TRAIN · REFLECT · IMPROVE</small>
+          <small>TRAIN · MEASURE · ADAPT</small>
         </span>
       </a>
 
-      <div class="topbar-actions"><button class="btn btn-outline btn-sm" data-modal="connections-dialog" type="button">Connections <span aria-hidden="true">⚙</span></button>
+      <div class="topbar-actions">
+        <button id="topbar-sample" class="btn btn-ghost btn-sm" type="button" title="Import bundled sample history">Load Sample</button>
+        <button class="btn btn-outline btn-sm" data-modal="connections-dialog" type="button">Connections <span aria-hidden="true">⚙</span></button>
         <div class="connection" aria-live="polite">
           <span id="watcher-dot" class="dot"></span>
           <span id="watcher-label">Checking watcher...</span>
@@ -40,153 +42,568 @@
       </div>
     </header>
 
-<main id="top"><section class="workspace-heading"><div><p class="eyebrow">YOUR TRAINING WORKSPACE</p><h1 id="workspace-title">Your training, in focus.</h1><p id="workspace-description" class="lede">Spot the changes. Keep the context. Know what to train next.</p></div><div class="window-card" aria-label="Latest imported run"><span>Latest run</span><strong id="hero-scenario">Awaiting data</strong><small id="hero-time">Connect your stats folder</small></div></section><nav class="workspace-navigation" aria-label="Workspace"><div class="tabs tabs-border workspace-tabs" role="tablist" aria-label="Training workspace"><button type="button" class="tab tab-active" id="tab-progress" role="tab" aria-controls="view-progress" aria-selected="true" tabindex="0" data-view="progress">Progress</button><button type="button" class="tab " id="tab-session" role="tab" aria-controls="view-session" aria-selected="false" tabindex="-1" data-view="session">Latest session</button><button type="button" class="tab " id="tab-coach" role="tab" aria-controls="view-coach" aria-selected="false" tabindex="-1" data-view="coach">Coach</button><button type="button" class="tab " id="tab-memory" role="tab" aria-controls="view-memory" aria-selected="false" tabindex="-1" data-view="memory">Memory</button><button type="button" class="tab " id="tab-reviews" role="tab" aria-controls="view-reviews" aria-selected="false" tabindex="-1" data-view="reviews">Reviews</button></div><span class="workspace-note"><span class="status status-success" aria-hidden="true"></span> Saved on this device</span></nav><div id="review-toolbar" class="review-toolbar">          <div class="review-controls">
-            <div class="period-switch"><span class="field-label">Review period</span><div class="join" role="group" aria-label="Review period"><button type="button" class="btn join-item" data-period="daily" aria-pressed="false">Day</button><button type="button" class="btn join-item btn-active" data-period="weekly" aria-pressed="true">Week</button><button type="button" class="btn join-item" data-period="monthly" aria-pressed="false">Month</button><button type="button" class="btn join-item" data-period="yearly" aria-pressed="false">Year</button></div></div>
-            <label class="period-select-label">Review period<select id="review-period" class="select select-bordered"><option value="daily">Daily</option><option value="weekly" selected>Weekly</option><option value="monthly">Monthly</option><option value="yearly">Year in review</option></select></label>
-            <label>Date in period<input id="review-date" class="input input-bordered" type="date"></label>
-            <label>Agent role<select id="agent-role" class="select select-bordered"><option value="coach">Long-term coach</option></select></label>
-          </div></div><section id="view-progress" class="workspace-panel" role="tabpanel" aria-labelledby="tab-progress" tabindex="0" >      <section class="card app-card longterm-card" aria-labelledby="longterm-title">
-        <div class="card-body">
-          <div class="panel-heading">
-            <div><p class="step">YOUR LONG-TERM PROGRESS</p><h2 id="longterm-title">Your progress at a glance</h2></div>
-            <button class="btn btn-primary btn-sm" type="button" data-view="coach">Coach this period <span aria-hidden="true">↗</span></button><span hidden id="retention-badge" class="badge badge-success badge-soft">History retained</span>
-          </div>
-
-          <p id="period-caption" class="hint" aria-live="polite">Loading your retained history…</p>
-          <div class="review-metrics stats">
-            <div><span>Runs</span><strong id="period-runs">—</strong><small id="previous-runs">Previous period: —</small></div>
-            <div><span>Practice time</span><strong id="period-minutes">—</strong><small id="time-coverage">Captured duration</small></div>
-            <div><span>Active days</span><strong id="period-days">—</strong><small id="retained-range">All history kept locally</small></div>
-            <div><span>Accuracy</span><strong id="period-accuracy">—</strong><small id="accuracy-coverage">Paired hits / shots</small></div>
-          </div>
-          <div id="activity-chart" class="activity-chart" aria-label="Training activity by date"></div>
-          <div class="table-wrap"><table class="table table-zebra"><thead><tr><th>Scenario</th><th>Runs</th><th>Average score</th><th>Best score</th><th>Accuracy</th><th>Vs previous period</th></tr></thead><tbody id="period-scenarios"></tbody></table></div>
-          <p class="hint comparison-note">Scores are compared within the same scenario. A period in progress is compared with the full previous period; missing sessions are not treated as zero performance.</p>
-          <div id="dashboard-message" class="message" aria-live="polite"></div>
+    <main id="top">
+      <section class="workspace-heading">
+        <div>
+          <p class="eyebrow">YOUR TRAINING WORKSPACE</p>
+          <h1 id="workspace-title">Your training, in focus.</h1>
+          <p id="workspace-description" class="lede">Evidence-driven aim analytics, adaptive training routines, and grounded coaching.</p>
+        </div>
+        <div class="window-card" aria-label="Latest imported run">
+          <span>Latest run</span>
+          <strong id="hero-scenario">Awaiting data</strong>
+          <small id="hero-time">Connect your stats folder</small>
         </div>
       </section>
-      <section class="card app-card records-card" aria-labelledby="records-title">
-        <div class="card-body">
-          <div class="panel-heading">
-            <div><p class="step">PRACTICE STREAKS &amp; PERSONAL BESTS</p><h2 id="records-title">Records</h2></div>
-          </div>
 
-          <div class="records-metrics review-metrics stats">
-            <div><span>Current streak</span><strong id="current-streak">—</strong><small id="current-streak-context">Consecutive practice days</small></div>
-            <div><span>Longest streak</span><strong id="longest-streak">—</strong><small id="longest-streak-context">All-time practice streak</small></div>
-          </div>
+      <nav class="workspace-navigation" aria-label="Workspace">
+        <div class="tabs tabs-border workspace-tabs" role="tablist" aria-label="Training workspace">
+          <button type="button" class="tab tab-active" id="tab-progress" role="tab" aria-controls="view-progress" aria-selected="true" tabindex="0" data-view="progress">Overview</button>
+          <button type="button" class="tab" id="tab-skills" role="tab" aria-controls="view-skills" aria-selected="false" tabindex="-1" data-view="skills">Skills</button>
+          <button type="button" class="tab" id="tab-training" role="tab" aria-controls="view-training" aria-selected="false" tabindex="-1" data-view="training">Today's Training</button>
+          <button type="button" class="tab" id="tab-coach" role="tab" aria-controls="view-coach" aria-selected="false" tabindex="-1" data-view="coach">AI Coach</button>
+          <button type="button" class="tab" id="tab-session" role="tab" aria-controls="view-session" aria-selected="false" tabindex="-1" data-view="session">History</button>
+          <button type="button" class="tab" id="tab-memory" role="tab" aria-controls="view-memory" aria-selected="false" tabindex="-1" data-view="memory">Memory</button>
+          <button type="button" class="tab" id="tab-reviews" role="tab" aria-controls="view-reviews" aria-selected="false" tabindex="-1" data-view="reviews">Reviews</button>
+        </div>
+        <span class="workspace-note"><span class="status status-success" aria-hidden="true"></span> Saved locally</span>
+      </nav>
 
-          <div class="table-wrap"><table class="table table-zebra"><thead><tr><th>Scenario</th><th>New best</th><th>Previous best</th><th>+Delta</th><th>Date</th></tr></thead><tbody id="period-records"></tbody></table></div>
-          <p class="hint records-note">Personal bests set during the selected period. Ties and lower scores do not count as new records.</p>
-          <div id="records-message" class="message" aria-live="polite"></div>
+      <div id="review-toolbar" class="review-toolbar">
+        <div class="review-controls">
+          <div class="period-switch">
+            <span class="field-label">Review period</span>
+            <div class="join" role="group" aria-label="Review period">
+              <button type="button" class="btn join-item" data-period="daily" aria-pressed="false">Day</button>
+              <button type="button" class="btn join-item btn-active" data-period="weekly" aria-pressed="true">Week</button>
+              <button type="button" class="btn join-item" data-period="monthly" aria-pressed="false">Month</button>
+              <button type="button" class="btn join-item" data-period="yearly" aria-pressed="false">Year</button>
+            </div>
+          </div>
+          <label class="period-select-label">Review period
+            <select id="review-period" class="select select-bordered">
+              <option value="daily">Daily</option>
+              <option value="weekly" selected>Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Year in review</option>
+            </select>
+          </label>
+          <label>Date in period<input id="review-date" class="input input-bordered" type="date"></label>
+          <label>Agent role<select id="agent-role" class="select select-bordered"><option value="coach">Long-term coach</option></select></label>
         </div>
-      </section></section><section id="view-session" class="workspace-panel" role="tabpanel" aria-labelledby="tab-session" tabindex="0" hidden>      <section class="section-heading" aria-labelledby="performance-title">
-        <div>
-          <p class="eyebrow">LATEST SESSION</p>
-          <h2 id="performance-title">The latest run, in detail.</h2>
-        </div>
-        <p id="week-summary">No runs in the seven-day window yet.</p>
-      </section>      <section class="metrics" aria-label="Latest run summary">
-        <article class="metric">
-          <div class="metric-icon" aria-hidden="true">↗</div>
-          <div><span>Score</span><strong id="latest-score">—</strong><small id="score-context">latest run</small></div>
-        </article>
-        <article class="metric">
-          <div class="metric-icon" aria-hidden="true">◎</div>
-          <div><span>Accuracy</span><strong id="latest-accuracy">—</strong><small id="shot-total">No shot data</small></div>
-        </article>
-        <article class="metric">
-          <div class="metric-icon" aria-hidden="true">●</div>
-          <div><span>Hits</span><strong id="latest-hits">—</strong><small id="miss-total">No miss data</small></div>
-        </article>
-        <article class="metric">
-          <div class="metric-icon" aria-hidden="true">Hz</div>
-          <div><span>Average FPS</span><strong id="latest-fps">—</strong><small>captured by Kovaak's</small></div>
-        </article>
-      </section><div class="session-layout">        <article class="card app-card performance-card">
+      </div>
+
+      <!-- OVERVIEW TAB -->
+      <section id="view-progress" class="workspace-panel" role="tabpanel" aria-labelledby="tab-progress" tabindex="0">
+        <section id="first-run-card" class="card app-card onboarding-card" hidden>
           <div class="card-body">
             <div class="panel-heading">
-              <div><p class="step">SHOT CONVERSION</p><h3 id="session-scenario">Waiting for a run</h3></div>
-              <span id="duration-badge" class="badge badge-ghost state-badge">—</span>
+              <div>
+                <p class="step">FIRST-RUN ONBOARDING</p>
+                <h2>Welcome to Kovaak Agent</h2>
+              </div>
+              <span class="badge badge-primary badge-soft">Local-first · No API key required</span>
             </div>
-
-            <div class="conversion" aria-label="Hit and miss share">
-              <div class="conversion-labels"><span>Hits</span><strong id="conversion-label">No shot data</strong><span>Misses</span></div>
-              <div class="conversion-track"><span id="conversion-fill"></span></div>
+            <p class="hint">Import your KovaaK's stats history or try the bundled 63-run sample dataset to immediately explore skill classification, bottleneck diagnostics, and adaptive routines.</p>
+            <div class="onboarding-actions">
+              <button id="first-run-sample" class="btn btn-primary btn-sm" type="button">Load Sample History</button>
+              <button id="first-run-detect" class="btn btn-outline btn-sm" type="button">Find Steam Stats Folder</button>
+              <button class="btn btn-ghost btn-sm" data-modal="connections-dialog" type="button">Configure Connections</button>
             </div>
-
-            <dl class="settings-grid">
-              <div><dt>Weapon</dt><dd id="run-weapon">—</dd></div>
-              <div><dt>Sensitivity</dt><dd id="run-sensitivity">—</dd></div>
-              <div><dt>DPI</dt><dd id="run-dpi">—</dd></div>
-              <div><dt>FOV</dt><dd id="run-fov">—</dd></div>
-              <div><dt>Resolution</dt><dd id="run-resolution">—</dd></div>
-              <div><dt>Game build</dt><dd id="run-version">—</dd></div>
-            </dl>
+            <div id="first-run-status" class="message" aria-live="polite"></div>
           </div>
-        </article>      <section class="history-section" aria-labelledby="history-title">
-        <article class="card app-card history-card">
+        </section>
+
+        <section id="five-questions-strip" class="intel-strip" aria-label="Performance Intelligence Summary">
+          <article class="card app-card intel-card">
+            <div class="card-body">
+              <p class="step">1 · IMPROVING AT</p>
+              <strong id="fq-improving">Collecting baseline…</strong>
+            </div>
+          </article>
+          <article class="card app-card intel-card">
+            <div class="card-body">
+              <p class="step">2 · HOLDING BACK YOUR AIM</p>
+              <strong id="fq-holding-back">Awaiting runs…</strong>
+            </div>
+          </article>
+          <article class="card app-card intel-card">
+            <div class="card-body">
+              <p class="step">3 · TRAIN TODAY</p>
+              <strong id="fq-train-today">Open Today's Training</strong>
+              <button class="btn btn-link btn-xs inline-action" type="button" data-view="training">Build routine ↗</button>
+            </div>
+          </article>
+          <article class="card app-card intel-card">
+            <div class="card-body">
+              <p class="step">4 · MEASURABLE PROGRESS</p>
+              <strong id="fq-progress">—</strong>
+            </div>
+          </article>
+          <article class="card app-card intel-card">
+            <div class="card-body">
+              <p class="step">5 · NEXT SESSION CHANGE</p>
+              <strong id="fq-next-change">—</strong>
+            </div>
+          </article>
+        </section>
+
+        <section class="card app-card skill-highlights-card" aria-labelledby="highlights-title">
           <div class="card-body">
             <div class="panel-heading">
-              <div><p class="step">SCENARIO HISTORY</p><h3 id="history-title">Recent runs</h3></div>
-              <button id="refresh" class="btn btn-ghost btn-sm" type="button">Refresh</button>
+              <div><p class="step">SKILL CATEGORY BALANCE</p><h2 id="highlights-title">Strongest &amp; lagging categories</h2></div>
+              <button class="btn btn-outline btn-sm" type="button" data-view="skills">Explore skill radar ↗</button>
+            </div>
+            <div id="category-highlights" class="category-highlights">
+              <p class="hint">Import runs to compute normalized within-scenario category profiles.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card app-card longterm-card" aria-labelledby="longterm-title">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">YOUR LONG-TERM PROGRESS</p><h2 id="longterm-title">Your progress at a glance</h2></div>
+              <div class="panel-actions">
+                <button class="btn btn-primary btn-sm" type="button" data-view="coach">Coach this period <span aria-hidden="true">↗</span></button>
+                <span hidden id="retention-badge" class="badge badge-success badge-soft">History retained</span>
+              </div>
+            </div>
+
+            <p id="period-caption" class="hint" aria-live="polite">Loading your retained history…</p>
+            <div class="review-metrics stats">
+              <div><span>Runs</span><strong id="period-runs">—</strong><small id="previous-runs">Previous period: —</small></div>
+              <div><span>Practice time</span><strong id="period-minutes">—</strong><small id="time-coverage">Captured duration</small></div>
+              <div><span>Active days</span><strong id="period-days">—</strong><small id="retained-range">All history kept locally</small></div>
+              <div><span>Accuracy</span><strong id="period-accuracy">—</strong><small id="accuracy-coverage">Paired hits / shots</small></div>
+            </div>
+            <div id="activity-chart" class="activity-chart" aria-label="Training activity by date"></div>
+            <div class="table-wrap">
+              <table class="table table-zebra">
+                <thead>
+                  <tr><th>Scenario</th><th>Skills</th><th>Runs</th><th>Median / Avg</th><th>Best score</th><th>Accuracy</th><th>Vs previous</th><th></th></tr>
+                </thead>
+                <tbody id="period-scenarios"></tbody>
+              </table>
+            </div>
+            <p class="hint comparison-note">Scores are compared strictly within the same scenario. A period in progress is compared with the full previous period; missing sessions are not treated as zero performance.</p>
+            <div id="dashboard-message" class="message" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="card app-card records-card" aria-labelledby="records-title">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">PRACTICE STREAKS &amp; PERSONAL BESTS</p><h2 id="records-title">Records</h2></div>
+            </div>
+            <div class="records-metrics review-metrics stats">
+              <div><span>Current streak</span><strong id="current-streak">—</strong><small id="current-streak-context">Consecutive practice days</small></div>
+              <div><span>Longest streak</span><strong id="longest-streak">—</strong><small id="longest-streak-context">All-time practice streak</small></div>
             </div>
             <div class="table-wrap">
-              <table class="table">
-                <thead><tr><th>When</th><th>Scenario</th><th>Score</th><th>Accuracy</th><th>Hits / shots</th><th>Setup</th></tr></thead>
-                <tbody id="runs-table"><tr><td colspan="6" class="empty-row">No runs imported yet.</td></tr></tbody>
+              <table class="table table-zebra">
+                <thead><tr><th>Scenario</th><th>New best</th><th>Previous best</th><th>+Delta</th><th>Date</th></tr></thead>
+                <tbody id="period-records"></tbody>
+              </table>
+            </div>
+            <p class="hint records-note">Personal bests set during the selected period. Ties and lower scores do not count as new records.</p>
+            <div id="records-message" class="message" aria-live="polite"></div>
+          </div>
+        </section>
+      </section>
+
+      <!-- SKILLS TAB -->
+      <section id="view-skills" class="workspace-panel" role="tabpanel" aria-labelledby="tab-skills" tabindex="0" hidden>
+        <div class="skills-grid">
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">NORMALIZED SKILL PROFILE</p><h2>Category radar</h2></div>
+                <span id="skills-coverage-badge" class="badge badge-ghost">All history</span>
+              </div>
+              <div id="skills-radar-chart" class="chart-container"></div>
+            </div>
+          </article>
+
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">SCENARIO PROGRESSION &amp; HARDWARE OVERLAY</p><h2>Scenario trend</h2></div>
+                <div class="trend-controls">
+                  <select id="trend-scenario" class="select select-bordered select-sm" aria-label="Scenario"></select>
+                  <select id="trend-days" class="select select-bordered select-sm" aria-label="Date range">
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="90" selected>90 days</option>
+                    <option value="0">All time</option>
+                  </select>
+                  <select id="trend-metric" class="select select-bordered select-sm" aria-label="Metric">
+                    <option value="score">Score</option>
+                    <option value="accuracy">Accuracy %</option>
+                  </select>
+                </div>
+              </div>
+              <div id="scenario-trend-chart" class="chart-container"></div>
+              <div id="trend-scenario-stats" class="trend-stats-strip"></div>
+            </div>
+          </article>
+        </div>
+
+        <section class="card app-card skills-table-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">CATEGORY METRICS</p><h3>Normalized skill breakdown</h3></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table table-zebra">
+                <thead>
+                  <tr><th>Category</th><th>Runs</th><th>Skill Index</th><th>PB Proximity</th><th>Consistency</th><th>Velocity</th><th>Accuracy</th><th>Plateaus</th></tr>
+                </thead>
+                <tbody id="category-table"></tbody>
               </table>
             </div>
           </div>
-        </article>
-      </section></div></section><section id="view-coach" class="workspace-panel" role="tabpanel" aria-labelledby="tab-coach" tabindex="0" hidden><div class="coach-notice alert" role="note"><span>Your coach uses this period, your saved goals, and past advice.</span><button class="btn btn-ghost btn-sm" data-modal="connections-dialog" type="button">Connect a model ↗</button></div><div class="performance-grid">        <article id="digest-panel" class="card app-card digest-panel">
+        </section>
+
+        <section class="card app-card benchmarks-card">
           <div class="card-body">
             <div class="panel-heading">
-              <div><p class="step">YOUR CONTINUING COACH</p><h3 id="digest-title">What to train next</h3></div>
-              <button id="generate-digest" class="btn btn-primary" type="button">Generate coaching</button>
+              <div><p class="step">BENCHMARK TRACKING</p><h3>Personal &amp; imported benchmarks</h3></div>
+              <button class="btn btn-outline btn-sm" type="button" data-modal="benchmark-dialog">Import Benchmark JSON</button>
             </div>
-            <div id="digest-meta" class="digest-meta" aria-label="Report source" hidden>
-              <span id="digest-provider" class="badge badge-primary badge-soft"></span>
-              <span id="digest-model" class="digest-model"></span>
-              <span id="digest-window" class="digest-window"></span>
-            </div>
-            <div id="digest" class="digest empty" aria-live="polite">Choose a period and role above, then connect your model in Connections. Your saved memories, past advice and long-term scenario history accompany each review.</div>
+            <p id="benchmark-note" class="hint"></p>
+            <div id="benchmarks-container" class="benchmarks-container"></div>
           </div>
-        </article></div></section><section id="view-memory" class="workspace-panel" role="tabpanel" aria-labelledby="tab-memory" tabindex="0" hidden>      <section class="setup-grid memory-grid" aria-label="Persistent coaching memory">
-        <article class="card app-card"><div class="card-body">
-          <div class="panel-heading"><div><p class="step">SHARED ACROSS AGENTS</p><h3>Your coaching memory</h3></div><button id="add-memory" class="btn btn-primary btn-sm" type="button">Add memory <span aria-hidden="true">+</span></button></div>
-          <p class="hint">Goals, preferences and outcomes stay here when you change models or restart. Add an outcome to tell your next coach what you actually tried.</p>
+        </section>
+      </section>
 
-          <div id="memory-action-message" class="message" aria-live="polite"></div>
-          <label class="schedule-toggle"><input id="show-archived" class="checkbox checkbox-sm" type="checkbox"> Show archived memories</label>
-          <div id="memory-list" class="memory-list"></div>
-        </div></article>
-        <article class="card app-card"><div class="card-body">
-          <div><p class="step">A COACH THAT CARRIES CONTEXT</p><h3>Agent roles</h3></div>
-          <p class="hint">Every role uses the same player history. Change its focus without starting your coaching relationship again.</p>
-<button class="btn btn-outline btn-sm" type="button" data-modal="role-dialog">Manage roles</button><div id="role-catalog" class="role-catalog"></div>
+      <!-- TODAY'S TRAINING TAB -->
+      <section id="view-training" class="workspace-panel" role="tabpanel" aria-labelledby="tab-training" tabindex="0" hidden>
+        <div class="training-grid">
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">FATIGUE-AWARE CHECK-IN</p><h3>Readiness &amp; constraints</h3></div>
+                <span id="readiness-badge" class="badge badge-ghost">Not checked in</span>
+              </div>
+              <form id="readiness-form" class="readiness-form">
+                <div class="readiness-fields">
+                  <label>Energy (1-5)<input id="rd-energy" class="input input-bordered input-sm" type="number" min="1" max="5" value="3"></label>
+                  <label>Focus (1-5)<input id="rd-focus" class="input input-bordered input-sm" type="number" min="1" max="5" value="3"></label>
+                  <label>Fatigue (1-5)<input id="rd-fatigue" class="input input-bordered input-sm" type="number" min="1" max="5" value="2"></label>
+                  <label>Eye strain (1-5)<input id="rd-eye" class="input input-bordered input-sm" type="number" min="1" max="5" value="1"></label>
+                  <label>Wrist discomfort (1-5)<input id="rd-wrist" class="input input-bordered input-sm" type="number" min="1" max="5" value="1"></label>
+                  <label>Available min<input id="rd-minutes" class="input input-bordered input-sm" type="number" min="5" max="240" placeholder="30"></label>
+                </div>
+                <div class="readiness-actions">
+                  <button class="btn btn-outline btn-sm" type="submit">Save check-in</button>
+                  <span id="readiness-message" class="message"></span>
+                </div>
+              </form>
+              <p class="hint">Wrist discomfort >=4 triggers a non-medical rest advisory instead of active drills. Kovaak Agent cannot diagnose injuries.</p>
+            </div>
+          </article>
 
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">DYNAMIC PLAYLIST GENERATOR</p><h3>Build today's routine</h3></div>
+              </div>
+              <div class="plan-controls">
+                <label class="field-label" for="plan-mode">Routine mode</label>
+                <select id="plan-mode" class="select select-bordered">
+                  <option value="warmup_10">10-Minute Warm-Up</option>
+                  <option value="focused_20">20-Minute Focused Training</option>
+                  <option value="balanced_30" selected>30-Minute Balanced Training</option>
+                  <option value="development_50">45–60 Min Development Session</option>
+                  <option value="benchmark">Benchmark Assessment</option>
+                  <option value="recovery">Low-Intensity Recovery Day</option>
+                  <option value="cs2_prep">CS2 Aim Preparation</option>
+                </select>
+                <button id="generate-plan" class="btn btn-primary" type="button">Generate Today's Plan</button>
+              </div>
+              <div id="plan-message" class="message" aria-live="polite"></div>
+            </div>
+          </article>
+        </div>
 
-        </div></article>
-      </section></section><section id="view-reviews" class="workspace-panel" role="tabpanel" aria-labelledby="tab-reviews" tabindex="0" hidden><div class="reviews-layout">      <section class="card app-card review-archive"><div class="card-body">
-        <div><p class="step">YOUR COACHING JOURNAL</p><h3>Saved reviews</h3></div>
-        <p class="hint">Recent coaching reports and all automatic year-end snapshots. Reports remain saved when you switch providers.</p>
-        <div id="review-archive" class="review-list"></div>
-      </div></section><article class="card app-card schedule-card"><div class="card-body"><div><p class="step">LOOKING AHEAD</p><h3>Your year-end review</h3></div>          <label class="schedule-toggle"><input id="annual-enabled" class="toggle toggle-primary" type="checkbox"> Automatically save my year-end review</label>
-          <p id="annual-schedule" class="hint"></p>
-          <p class="hint">Runs locally at year close, January 1 at midnight. If the app is closed, it catches up next time it opens. Late imports update the saved statistical review. No API key is needed. Add model coaching whenever you’re ready.</p>
-          <div id="schedule-message" class="message" aria-live="polite"></div></div></article></div></section></main>
+        <section id="active-plan-card" class="card app-card active-plan-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div>
+                <p class="step">TODAY'S PRESCRIBED ROUTINE</p>
+                <h2 id="plan-title">No active plan yet</h2>
+              </div>
+              <span id="plan-status-badge" class="badge badge-ghost">—</span>
+            </div>
+            <div id="plan-advisory" class="alert alert-warning" hidden></div>
+            <p id="plan-objective" class="hint">Select a routine mode above and click Generate Today's Plan.</p>
+            <div id="plan-items" class="plan-items"></div>
+
+            <div id="plan-eval-box" class="plan-eval-box" hidden>
+              <h4>Close the loop — Post-session assessment</h4>
+              <p class="hint">Compare runs logged after plan creation against your prescribed targets and optionally save how the session felt.</p>
+              <div class="field-row">
+                <input id="plan-feedback" class="input input-bordered" maxlength="1000" placeholder="Optional: Felt steady on Smoothbot; rushed last 2 static runs...">
+                <button id="evaluate-plan" class="btn btn-neutral" type="button">Evaluate Session</button>
+              </div>
+              <div id="plan-eval-result" class="plan-eval-result" hidden></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- AI COACH TAB -->
+      <section id="view-coach" class="workspace-panel" role="tabpanel" aria-labelledby="tab-coach" tabindex="0" hidden>
+        <div class="coach-notice alert" role="note">
+          <span>All numerical findings come from deterministic code. Offline Coaching works with zero API key; connecting a model adds natural-language synthesis validated against your real scenarios.</span>
+          <button class="btn btn-ghost btn-sm" data-modal="connections-dialog" type="button">Connect a model ↗</button>
+        </div>
+
+        <div class="coach-layout">
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">COORDINATED COACHING BRIEF</p><h3 id="brief-title">Performance Analyst · Technique · Planner · Evaluator</h3></div>
+                <div class="panel-actions">
+                  <button id="generate-brief-local" class="btn btn-outline btn-sm" type="button">Analyze Locally (Offline)</button>
+                  <button id="generate-brief-llm" class="btn btn-primary btn-sm" type="button">Generate AI Coaching Brief</button>
+                </div>
+              </div>
+              <div id="brief-warnings" class="alert alert-warning" hidden></div>
+              <div id="brief-container" class="brief-container">
+                <p class="hint">Click <strong>Analyze Locally</strong> for an instant deterministic brief, or connect a model in Connections for LLM-enhanced coaching.</p>
+              </div>
+              <details id="evidence-inspector" class="provider-diagnostics" hidden>
+                <summary>Evidence Inspector (exact supporting metrics &amp; runs)</summary>
+                <pre id="evidence-inspector-output"></pre>
+              </details>
+            </div>
+          </article>
+
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">NATURAL-LANGUAGE HISTORY Q&amp;A</p><h3>Ask about your own training</h3></div>
+              </div>
+              <form id="coach-ask-form" class="field-row">
+                <input id="coach-question" class="input input-bordered" maxlength="600" placeholder="e.g., What am I improving at? Did my sensitivity change help?">
+                <button class="btn btn-neutral" type="submit">Ask</button>
+              </form>
+              <div class="qa-chips">
+                <button type="button" class="btn btn-ghost btn-xs qa-chip" data-q="What am I actually improving at?">What am I improving at?</button>
+                <button type="button" class="btn btn-ghost btn-xs qa-chip" data-q="What is currently holding back my aim?">What is holding me back?</button>
+                <button type="button" class="btn btn-ghost btn-xs qa-chip" data-q="How did my sensitivity change affect my scores?">Sensitivity change impact?</button>
+              </div>
+              <div id="coach-answer" class="coach-answer" hidden></div>
+            </div>
+          </article>
+        </div>
+
+        <section class="card app-card effectiveness-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">CLOSED-LOOP ACCOUNTABILITY</p><h3>Previous advice vs observed outcomes</h3></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table table-zebra">
+                <thead><tr><th>When</th><th>Source</th><th>Focus / Advice</th><th>Verdict</th><th>Observed Outcome</th></tr></thead>
+                <tbody id="effectiveness-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <div class="performance-grid">
+          <article id="digest-panel" class="card app-card digest-panel">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">FULL NARRATIVE REPORT (CONNECTED PROVIDER)</p><h3 id="digest-title">What to train next</h3></div>
+                <button id="generate-digest" class="btn btn-primary" type="button">Generate coaching</button>
+              </div>
+              <div id="digest-meta" class="digest-meta" aria-label="Report source" hidden>
+                <span id="digest-provider" class="badge badge-primary badge-soft"></span>
+                <span id="digest-model" class="digest-model"></span>
+                <span id="digest-window" class="digest-window"></span>
+              </div>
+              <div id="digest" class="digest empty" aria-live="polite">Choose a period and role above, then connect your model in Connections. Your saved memories, past advice and long-term scenario history accompany each review.</div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- HISTORY TAB -->
+      <section id="view-session" class="workspace-panel" role="tabpanel" aria-labelledby="tab-session" tabindex="0" hidden>
+        <section class="section-heading" aria-labelledby="performance-title">
+          <div>
+            <p class="eyebrow">SESSION TIMELINE &amp; LATEST RUN</p>
+            <h2 id="performance-title">The latest run, in detail.</h2>
+          </div>
+          <p id="week-summary">No runs in the seven-day window yet.</p>
+        </section>
+
+        <section class="metrics" aria-label="Latest run summary">
+          <article class="metric">
+            <div class="metric-icon" aria-hidden="true">↗</div>
+            <div><span>Score</span><strong id="latest-score">—</strong><small id="score-context">latest run</small></div>
+          </article>
+          <article class="metric">
+            <div class="metric-icon" aria-hidden="true">◎</div>
+            <div><span>Accuracy</span><strong id="latest-accuracy">—</strong><small id="shot-total">No shot data</small></div>
+          </article>
+          <article class="metric">
+            <div class="metric-icon" aria-hidden="true">●</div>
+            <div><span>Hits</span><strong id="latest-hits">—</strong><small id="miss-total">No miss data</small></div>
+          </article>
+          <article class="metric">
+            <div class="metric-icon" aria-hidden="true">Hz</div>
+            <div><span>Average FPS</span><strong id="latest-fps">—</strong><small>captured by Kovaak's</small></div>
+          </article>
+        </section>
+
+        <div class="history-top-grid">
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">WITHIN-SESSION PROGRESSION</p><h3>Warmup &amp; late-session drift</h3></div>
+              </div>
+              <div id="session-drift-chart"></div>
+            </div>
+          </article>
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">SETUP &amp; HARDWARE TIMELINE</p><h3>Sensitivity &amp; gear annotations</h3></div>
+                <button class="btn btn-outline btn-xs" type="button" data-modal="hardware-dialog">Log change +</button>
+              </div>
+              <div id="hardware-list" class="hardware-list">
+                <p class="hint">No setup or sensitivity transitions detected yet.</p>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <section class="card app-card session-timeline-card">
+          <div class="card-body">
+            <div class="panel-heading">
+              <div><p class="step">GROUPED SESSIONS</p><h3>Session timeline</h3></div>
+            </div>
+            <div id="session-timeline" class="session-timeline"></div>
+          </div>
+        </section>
+
+        <div class="session-layout">
+          <article class="card app-card performance-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">SHOT CONVERSION</p><h3 id="session-scenario">Waiting for a run</h3></div>
+                <span id="duration-badge" class="badge badge-ghost state-badge">—</span>
+              </div>
+              <div class="conversion" aria-label="Hit and miss share">
+                <div class="conversion-labels"><span>Hits</span><strong id="conversion-label">No shot data</strong><span>Misses</span></div>
+                <div class="conversion-track"><span id="conversion-fill"></span></div>
+              </div>
+              <dl class="settings-grid">
+                <div><dt>Weapon</dt><dd id="run-weapon">—</dd></div>
+                <div><dt>Sensitivity</dt><dd id="run-sensitivity">—</dd></div>
+                <div><dt>DPI</dt><dd id="run-dpi">—</dd></div>
+                <div><dt>FOV</dt><dd id="run-fov">—</dd></div>
+                <div><dt>Resolution</dt><dd id="run-resolution">—</dd></div>
+                <div><dt>Game build</dt><dd id="run-version">—</dd></div>
+              </dl>
+            </div>
+          </article>
+
+          <section class="history-section" aria-labelledby="history-title">
+            <article class="card app-card history-card">
+              <div class="card-body">
+                <div class="panel-heading">
+                  <div><p class="step">SCENARIO HISTORY</p><h3 id="history-title">Recent runs</h3></div>
+                  <button id="refresh" class="btn btn-ghost btn-sm" type="button">Refresh</button>
+                </div>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th>When</th><th>Scenario</th><th>Score</th><th>Accuracy</th><th>Hits / shots</th><th>Setup</th></tr></thead>
+                    <tbody id="runs-table"><tr><td colspan="6" class="empty-row">No runs imported yet.</td></tr></tbody>
+                  </table>
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </section>
+
+      <!-- MEMORY TAB -->
+      <section id="view-memory" class="workspace-panel" role="tabpanel" aria-labelledby="tab-memory" tabindex="0" hidden>
+        <section class="setup-grid memory-grid" aria-label="Persistent coaching memory">
+          <article class="card app-card">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">USER-REPORTED CONTEXT (SEPARATE FROM MEASURED RUNS)</p><h3>Your coaching memory</h3></div>
+                <button id="add-memory" class="btn btn-primary btn-sm" type="button">Add memory <span aria-hidden="true">+</span></button>
+              </div>
+              <p class="hint">Goals, hardware notes, fatigue context, and practice outcomes carry across providers and restarts. Measured run facts remain strictly separate.</p>
+              <div id="memory-action-message" class="message" aria-live="polite"></div>
+              <label class="schedule-toggle"><input id="show-archived" class="checkbox checkbox-sm" type="checkbox"> Show archived memories</label>
+              <div id="memory-list" class="memory-list"></div>
+            </div>
+          </article>
+
+          <article class="card app-card">
+            <div class="card-body">
+              <div><p class="step">A COACH THAT CARRIES CONTEXT</p><h3>Agent roles</h3></div>
+              <p class="hint">Every role uses the same player history. Change its focus without starting your coaching relationship again.</p>
+              <button class="btn btn-outline btn-sm" type="button" data-modal="role-dialog">Manage roles</button>
+              <div id="role-catalog" class="role-catalog"></div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <!-- REVIEWS TAB -->
+      <section id="view-reviews" class="workspace-panel" role="tabpanel" aria-labelledby="tab-reviews" tabindex="0" hidden>
+        <div class="reviews-layout">
+          <section class="card app-card review-archive">
+            <div class="card-body">
+              <div class="panel-heading">
+                <div><p class="step">YOUR COACHING JOURNAL</p><h3>Saved reviews</h3></div>
+                <div class="panel-actions">
+                  <a class="btn btn-outline btn-xs" href="/api/export?format=json" download>Export JSON</a>
+                  <a class="btn btn-outline btn-xs" href="/api/export?format=csv" download>Export CSV</a>
+                </div>
+              </div>
+              <p class="hint">Recent coaching reports and all automatic year-end snapshots. Reports remain saved when you switch providers.</p>
+              <div id="review-archive" class="review-list"></div>
+            </div>
+          </section>
+
+          <article class="card app-card schedule-card">
+            <div class="card-body">
+              <div><p class="step">LOOKING AHEAD</p><h3>Your year-end review</h3></div>
+              <label class="schedule-toggle"><input id="annual-enabled" class="toggle toggle-primary" type="checkbox"> Automatically save my year-end review</label>
+              <p id="annual-schedule" class="hint"></p>
+              <p class="hint">Runs locally at year close, January 1 at midnight. If the app is closed, it catches up next time it opens. Late imports update the saved statistical review. No API key is needed.</p>
+              <div id="schedule-message" class="message" aria-live="polite"></div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
 
     <footer>
       <span>Your progress stays with you.</span>
       <span id="last-sync">Waiting for first import</span>
     </footer>
   </div>
-<dialog id="connections-dialog" class="modal" aria-labelledby="connections-dialog-title">
-      <div class="modal-box modal-wide">
-        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Connections">✕</button></form>
-        <p class="eyebrow">KOVAAK AGENT</p><h2 id="connections-dialog-title">Connections</h2><p class="dialog-description">Bring in your runs and connect a coaching model.</p>
-              <div class="setup-grid" aria-label="Setup connections">
+
+  <!-- CONNECTIONS DIALOG -->
+  <dialog id="connections-dialog" class="modal" aria-labelledby="connections-dialog-title">
+    <div class="modal-box modal-wide">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Connections">✕</button></form>
+      <p class="eyebrow">KOVAAK AGENT</p>
+      <h2 id="connections-dialog-title">Connections</h2>
+      <p class="dialog-description">Bring in your runs and optionally connect a coaching model.</p>
+      <div class="setup-grid" aria-label="Setup connections">
         <article class="card app-card">
           <div class="card-body">
             <div class="panel-heading">
@@ -201,8 +618,12 @@
               <input id="watch-path" class="input input-bordered" type="text" spellcheck="false" placeholder="…\FPSAimTrainer\stats">
               <button id="save-path" class="btn btn-primary" type="button">Save &amp; scan</button>
             </div>
-            <p class="hint">Point to the <strong>stats</strong> folder to import each completed challenge automatically, including weapon totals and aim settings. <button id="detect-path" class="btn btn-link btn-xs detect-link" type="button">Find it in my Steam libraries</button></p>
+            <p class="hint">Point to the <strong>stats</strong> folder to import each completed challenge automatically.
+              <button id="detect-path" class="btn btn-link btn-xs detect-link" type="button">Find it in my Steam libraries</button> ·
+              <button id="dialog-load-sample" class="btn btn-link btn-xs detect-link" type="button">Load bundled sample</button>
+            </p>
             <div id="import-message" class="message" aria-live="polite"></div>
+            <div id="import-diagnostics" class="hint" hidden></div>
           </div>
         </article>
 
@@ -220,15 +641,20 @@
               <option value="openai">OpenAI</option>
               <option value="openrouter">OpenRouter</option>
               <option value="gemini">Google Gemini</option>
+              <option value="local">Local (Ollama / LM Studio)</option>
             </select>
             <label id="model-label" class="field-label" for="model">OpenAI model</label>
             <input id="model" class="input input-bordered" type="text" spellcheck="false" value="gpt-5.4-mini">
+            <div id="local-endpoint-wrap" hidden>
+              <label class="field-label" for="local-endpoint">Local OpenAI-compatible endpoint</label>
+              <input id="local-endpoint" class="input input-bordered" type="text" spellcheck="false" value="http://127.0.0.1:11434/v1/chat/completions">
+            </div>
             <label id="api-key-label" class="field-label" for="api-key">OpenAI API key <span class="quiet">session only</span></label>
             <div class="field-row">
               <input id="api-key" class="input input-bordered" type="password" autocomplete="off" placeholder="sk-...">
               <button id="connect-model" class="btn btn-neutral" type="button">Connect &amp; test</button>
             </div>
-            <p id="provider-hint" class="hint">Shares selected-period statistics, a bounded sample of runs, relevant saved memories, prior advice and lifetime scenario summaries when you request coaching.</p>
+            <p id="provider-hint" class="hint">Shares compressed statistics, diagnoses, and relevant memories when you request AI coaching.</p>
             <div id="model-message" class="message" aria-live="polite"></div>
             <details id="model-diagnostics" class="provider-diagnostics" hidden>
               <summary>Provider diagnostics</summary>
@@ -237,39 +663,159 @@
             </details>
           </div>
         </article>
-      </div><div class="backup-row"><div><strong>Keep a backup</strong><p class="hint">Download your runs, roles, memories and reviews together.</p></div><a class="btn btn-outline btn-sm" href="/api/backup" download>Download backup</a></div>
-      <div id="desktop-row" class="backup-row" hidden><div><strong>Start with Windows</strong><p class="hint">Open in the tray when you sign in, so new runs are captured without opening the window.</p></div><input id="autostart" class="toggle toggle-primary" type="checkbox" aria-label="Start with Windows"></div>
+      </div>
+      <div class="backup-row">
+        <div><strong>Keep a backup</strong><p class="hint">Download your runs, roles, memories and reviews together.</p></div>
+        <a class="btn btn-outline btn-sm" href="/api/backup" download>Download backup</a>
+      </div>
+      <div id="desktop-row" class="backup-row" hidden>
+        <div><strong>Start with Windows</strong><p class="hint">Open in the tray when you sign in, so new runs are captured without opening the window.</p></div>
+        <input id="autostart" class="toggle toggle-primary" type="checkbox" aria-label="Start with Windows">
+      </div>
       <p class="hint data-location">Data folder: <code id="data-dir">…</code> <span id="app-version" class="quiet"></span></p>
-      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Connections">Close</button></form>
-    </dialog><dialog id="memory-dialog" class="modal" aria-labelledby="memory-dialog-title">
-      <div class="modal-box ">
-        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Coaching memory">✕</button></form>
-        <p class="eyebrow">KOVAAK AGENT</p><h2 id="memory-dialog-title">Coaching memory</h2><p class="dialog-description">Save a goal, preference, or outcome for your next review.</p>
-                  <form id="memory-form">
-            <div class="review-controls"><label>Memory type<select id="memory-kind" class="select select-bordered"><option value="goal">Goal</option><option value="preference">Preference</option><option value="constraint">Constraint</option><option value="outcome">Practice outcome</option><option value="note">Note</option></select></label><label>Scenario (optional)<input id="memory-scenario" class="input input-bordered" maxlength="200" placeholder="All scenarios"></label></div>
-            <label class="field-label" for="memory-body">Remember this</label><textarea id="memory-body" class="textarea textarea-bordered" maxlength="2000" rows="3" required placeholder="Example: I have 20 minutes on weekdays. My goal is steadier tracking."></textarea>
-            <button class="btn btn-primary" type="submit">Save memory</button>
-            <button id="cancel-memory-edit" class="btn btn-ghost btn-sm" type="button" hidden>Cancel edit</button>
-          </form><div id="memory-message" class="message" aria-live="polite"></div>
-      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Coaching memory">Close</button></form>
-    </dialog><dialog id="role-dialog" class="modal" aria-labelledby="role-dialog-title">
-      <div class="modal-box ">
-        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Agent roles">✕</button></form>
-        <p class="eyebrow">KOVAAK AGENT</p><h2 id="role-dialog-title">Agent roles</h2><p class="dialog-description">Give your coach a focus. Every role shares your player history.</p>
-        <form id="role-form">
-            <label class="field-label" for="role-edit">Role to edit</label><select id="role-edit" class="select select-bordered"><option value="">Create new role</option></select>
-            <label class="field-label" for="role-name">Role name</label><input id="role-name" class="input input-bordered" maxlength="80" required>
-            <label class="field-label" for="role-instructions">Coaching focus</label><textarea id="role-instructions" class="textarea textarea-bordered" rows="3" maxlength="2000" required></textarea>
-            <button class="btn btn-neutral btn-sm" type="submit">Save role</button>
-          </form><div id="role-message" class="message" aria-live="polite"></div>
-      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Agent roles">Close</button></form>
-    </dialog><dialog id="report-dialog" class="modal" aria-labelledby="report-dialog-title">
-      <div class="modal-box modal-wide">
-        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Saved review">✕</button></form>
-        <p class="eyebrow">KOVAAK AGENT</p><h2 id="report-dialog-title">Saved review</h2><p class="dialog-description">Your coaching journal, kept locally.</p>
-        <div id="saved-report-body" class="digest"></div>
-      </div><form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Saved review">Close</button></form>
-    </dialog><div id="ui-toast" class="toast toast-end toast-bottom" role="status" aria-live="polite" hidden><div class="alert alert-success"><span id="ui-toast-text"></span></div></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Connections">Close</button></form>
+  </dialog>
+
+  <!-- MEMORY DIALOG -->
+  <dialog id="memory-dialog" class="modal" aria-labelledby="memory-dialog-title">
+    <div class="modal-box">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Coaching memory">✕</button></form>
+      <p class="eyebrow">KOVAAK AGENT</p>
+      <h2 id="memory-dialog-title">Coaching memory</h2>
+      <p class="dialog-description">Save a goal, preference, hardware context, or outcome for your next review.</p>
+      <form id="memory-form">
+        <div class="review-controls">
+          <label>Memory type
+            <select id="memory-kind" class="select select-bordered">
+              <option value="goal">Goal</option>
+              <option value="preference">Preference</option>
+              <option value="constraint">Constraint</option>
+              <option value="outcome">Practice outcome</option>
+              <option value="hardware">Hardware / Setup</option>
+              <option value="fatigue">Fatigue / Recovery</option>
+              <option value="schedule">Training availability</option>
+              <option value="note">Note</option>
+            </select>
+          </label>
+          <label>Scenario (optional)<input id="memory-scenario" class="input input-bordered" maxlength="200" placeholder="All scenarios"></label>
+        </div>
+        <label class="field-label" for="memory-body">Remember this</label>
+        <textarea id="memory-body" class="textarea textarea-bordered" maxlength="2000" rows="3" required placeholder="Example: I have 20 minutes on weekdays. My goal is steadier tracking."></textarea>
+        <button class="btn btn-primary" type="submit">Save memory</button>
+        <button id="cancel-memory-edit" class="btn btn-ghost btn-sm" type="button" hidden>Cancel edit</button>
+      </form>
+      <div id="memory-message" class="message" aria-live="polite"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Coaching memory">Close</button></form>
+  </dialog>
+
+  <!-- ROLE DIALOG -->
+  <dialog id="role-dialog" class="modal" aria-labelledby="role-dialog-title">
+    <div class="modal-box">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Agent roles">✕</button></form>
+      <p class="eyebrow">KOVAAK AGENT</p>
+      <h2 id="role-dialog-title">Agent roles</h2>
+      <p class="dialog-description">Give your coach a focus. Every role shares your player history.</p>
+      <form id="role-form">
+        <label class="field-label" for="role-edit">Role to edit</label>
+        <select id="role-edit" class="select select-bordered"><option value="">Create new role</option></select>
+        <label class="field-label" for="role-name">Role name</label>
+        <input id="role-name" class="input input-bordered" maxlength="80" required>
+        <label class="field-label" for="role-instructions">Coaching focus</label>
+        <textarea id="role-instructions" class="textarea textarea-bordered" rows="3" maxlength="2000" required></textarea>
+        <button class="btn btn-neutral btn-sm" type="submit">Save role</button>
+      </form>
+      <div id="role-message" class="message" aria-live="polite"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Agent roles">Close</button></form>
+  </dialog>
+
+  <!-- SAVED REPORT DIALOG -->
+  <dialog id="report-dialog" class="modal" aria-labelledby="report-dialog-title">
+    <div class="modal-box modal-wide">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Saved review">✕</button></form>
+      <p class="eyebrow">KOVAAK AGENT</p>
+      <h2 id="report-dialog-title">Saved review</h2>
+      <p class="dialog-description">Your coaching journal, kept locally.</p>
+      <div id="saved-report-body" class="digest"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Saved review">Close</button></form>
+  </dialog>
+
+  <!-- SCENARIO TAG EDITOR DIALOG -->
+  <dialog id="tag-dialog" class="modal" aria-labelledby="tag-dialog-title">
+    <div class="modal-box">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Tag editor">✕</button></form>
+      <p class="eyebrow">SKILL TAXONOMY</p>
+      <h2 id="tag-dialog-title">Edit scenario skills</h2>
+      <p id="tag-scenario-name" class="dialog-description"></p>
+      <form id="tag-form">
+        <div id="tag-checkboxes" class="tag-checkboxes"></div>
+        <div class="tag-actions">
+          <button class="btn btn-primary btn-sm" type="submit">Save tags</button>
+          <button id="reset-tags" class="btn btn-ghost btn-sm" type="button">Reset to automatic</button>
+        </div>
+      </form>
+      <div id="tag-message" class="message" aria-live="polite"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Tag editor">Close</button></form>
+  </dialog>
+
+  <!-- HARDWARE ANNOTATION DIALOG -->
+  <dialog id="hardware-dialog" class="modal" aria-labelledby="hardware-dialog-title">
+    <div class="modal-box">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Hardware annotation">✕</button></form>
+      <p class="eyebrow">SETUP TIMELINE</p>
+      <h2 id="hardware-dialog-title">Log hardware or setup change</h2>
+      <p class="dialog-description">Annotate mouse, pad, skates, monitor, or sensitivity changes to inspect before/after score impacts.</p>
+      <form id="hardware-form">
+        <label class="field-label" for="hw-date">Date &amp; time</label>
+        <input id="hw-date" class="input input-bordered" type="datetime-local" required>
+        <label class="field-label" for="hw-type">Change type</label>
+        <select id="hw-type" class="select select-bordered">
+          <option value="mouse">Mouse</option>
+          <option value="mousepad">Mousepad</option>
+          <option value="skates">Mouse skates</option>
+          <option value="sensitivity">Sensitivity</option>
+          <option value="dpi">DPI</option>
+          <option value="monitor">Monitor / Refresh rate</option>
+          <option value="setup">Other setup</option>
+        </select>
+        <label class="field-label" for="hw-summary">Summary</label>
+        <input id="hw-summary" class="input input-bordered" maxlength="200" required placeholder="e.g., Switched to Artisan Zero Soft">
+        <label class="field-label" for="hw-note">Notes (optional)</label>
+        <textarea id="hw-note" class="textarea textarea-bordered" maxlength="1000" rows="2"></textarea>
+        <button class="btn btn-primary btn-sm" type="submit">Save annotation</button>
+      </form>
+      <div id="hardware-message" class="message" aria-live="polite"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Hardware annotation">Close</button></form>
+  </dialog>
+
+  <!-- CUSTOM BENCHMARK DIALOG -->
+  <dialog id="benchmark-dialog" class="modal" aria-labelledby="benchmark-dialog-title">
+    <div class="modal-box modal-wide">
+      <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost modal-close" aria-label="Close Benchmark import">✕</button></form>
+      <p class="eyebrow">BENCHMARKS</p>
+      <h2 id="benchmark-dialog-title">Import benchmark definition JSON</h2>
+      <p class="dialog-description">Paste verified rank thresholds (e.g., Voltaic or Viscose JSON) matching the template below.</p>
+      <form id="benchmark-form">
+        <textarea id="benchmark-json" class="textarea textarea-bordered" rows="10" required></textarea>
+        <div class="tag-actions">
+          <button class="btn btn-primary btn-sm" type="submit">Import Benchmark</button>
+          <button id="fill-benchmark-template" class="btn btn-ghost btn-sm" type="button">Load Template</button>
+        </div>
+      </form>
+      <div id="benchmark-message" class="message" aria-live="polite"></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button aria-label="Dismiss Benchmark import">Close</button></form>
+  </dialog>
+
+  <div id="ui-toast" class="toast toast-end toast-bottom" role="status" aria-live="polite" hidden>
+    <div class="alert alert-success"><span id="ui-toast-text"></span></div>
+  </div>
+  <script src="/charts.js" defer></script>
   <script src="/app.js" defer></script>
 </body>
 </html>
